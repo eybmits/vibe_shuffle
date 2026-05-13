@@ -37,5 +37,10 @@ npm run build
 
 ## Deploy
 
-The `main` branch deploys the built `dist/` folder to GitHub Pages through
-`.github/workflows/deploy.yml`.
+Live site:
+
+https://eybmits.github.io/vibe_shuffle_site/
+
+The source repository stays private. GitHub Pages is served from the separate
+public static repository `eybmits/vibe_shuffle_site`, which contains the built
+`dist/` output.
