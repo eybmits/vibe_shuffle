@@ -25,26 +25,47 @@ The music catalog still uses four Valence x Energy quadrants:
 
 The app reads a static catalog from `src/data/spotifyCatalog.json`. The repo
 contains a small real instrumental fallback catalog so the UI is immediately
-audible before Spotify is configured. To generate the real Spotify catalog from
-a playlist, run:
+audible before Spotify is configured.
+
+Preferred Spotify-only fallback when Audio Features are unavailable:
 
 ```bash
 SPOTIFY_CLIENT_ID="..." \
 SPOTIFY_CLIENT_SECRET="..." \
+SPOTIFY_CATALOG_MODE="curated" \
+SPOTIFY_HAPPY_PLAYLIST_URL="https://open.spotify.com/playlist/..." \
+SPOTIFY_SAD_PLAYLIST_URL="https://open.spotify.com/playlist/..." \
+npm run spotify:catalog
+```
+
+In `curated` mode, Spotify provides track metadata and playback URIs, but the
+category comes from the source playlist. Tracks from
+`SPOTIFY_HAPPY_PLAYLIST_URL` are assigned to `happy`; tracks from
+`SPOTIFY_SAD_PLAYLIST_URL` are assigned to `sad_low`. Optional
+`SPOTIFY_RELAXED_PLAYLIST_URL` and `SPOTIFY_TENSE_PLAYLIST_URL` can be provided
+for four-quadrant catalogs. The script interleaves the configured playlists,
+deduplicates tracks, and saves up to 100 tracks without using Audio Features.
+
+Original Audio Features mode:
+
+```bash
+SPOTIFY_CLIENT_ID="..." \
+SPOTIFY_CLIENT_SECRET="..." \
+SPOTIFY_CATALOG_MODE="features" \
 SPOTIFY_PLAYLIST_URL="https://open.spotify.com/playlist/..." \
 npm run spotify:catalog
 ```
 
-The script fetches playlist tracks, queries Spotify Audio Features, filters for
-instrumental character (`instrumentalness >= 0.5`, `speechiness <= 0.33`), maps
-tracks into the four Valence x Energy quadrants, and writes:
+In `features` mode, the script fetches playlist tracks, queries Spotify Audio
+Features, filters for instrumental character (`instrumentalness >= 0.5`,
+`speechiness <= 0.33`), maps tracks into the four Valence x Energy quadrants,
+and writes:
 
 - `src/data/spotifyCatalog.json`
 - `data/spotify_catalog.csv`
 
 Spotify has deprecated and restricted Audio Features for some newer apps. If
-Spotify returns `403` for that endpoint, the script exits with a clear error
-instead of generating fake feature values.
+Spotify returns `403` for that endpoint, use `curated` mode instead.
 
 ## Spotify playback
 
