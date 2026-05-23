@@ -449,6 +449,10 @@ async function main() {
     path.resolve("src/data/spotifyCatalog.json"),
     `${JSON.stringify(payload, null, 2)}\n`,
   );
+  await writeFile(
+    path.resolve("src/data/musicCatalog.json"),
+    `${JSON.stringify(payload, null, 2)}\n`,
+  );
   await writeFile(path.resolve("data/spotify_catalog.csv"), `${toCsv(eligible)}\n`);
 
   console.log(`Catalog mode: ${mode}`);

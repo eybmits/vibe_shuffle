@@ -7,13 +7,15 @@ client-only; there is no backend service.
 
 - `src/App.jsx`: complete experiment UI, state machine, playback handling,
   expression detection, track ranking, rating modal, and CSV export.
-- `src/data/spotifyCatalog.json`: static track catalog consumed by the app.
+- `src/data/musicCatalog.json`: static track catalog consumed by the app.
+- `src/data/spotifyCatalog.json`: legacy/optional Spotify catalog output.
+- `scripts/build_jamendo_catalog.mjs`: preferred real-music catalog generator.
 - `scripts/build_spotify_catalog.mjs`: build-time Spotify catalog generator.
 - `src/index.css`: Tailwind entrypoint and global base styles.
 
 ## Data Flow
 
-1. The app loads `spotifyCatalog.json`.
+1. The app loads `musicCatalog.json`.
 2. Each track is normalized into a common internal shape:
    `id`, `title`, `artist`, `spotifyUri`, `audioUrl`, `quadrant`,
    `valence`, `energy`, `instrumentalness`, and visual styling fields.
@@ -41,8 +43,8 @@ switching margin to reduce flicker. Camera frames are not stored or uploaded.
 
 There are three playback paths:
 
-- Direct MP3 fallback: bundled real instrumental SoundHelix URLs in the
-  fallback catalog.
+- Direct MP3/stream playback: Jamendo or fallback instrumental URLs in the
+  catalog.
 - Spotify Web Playback SDK: full-track playback for Spotify catalog entries
   with `spotifyUri`; requires Spotify Premium.
 - Spotify preview URL: stored when available during catalog generation, but not
@@ -50,6 +52,8 @@ There are three playback paths:
 
 ## Catalog Generation
 
-The catalog generator runs at build time, not in the browser. It writes a static
-JSON catalog into `src/data/spotifyCatalog.json`. Secrets are provided through
-environment variables or an ignored `.env` file and are never committed.
+Catalog generators run at build time, not in the browser. The preferred Jamendo
+path writes `src/data/musicCatalog.json` and `data/jamendo_catalog.csv`. The
+Spotify path writes both `src/data/spotifyCatalog.json` and
+`src/data/musicCatalog.json`. Secrets are provided through environment variables
+or an ignored `.env` file and are never committed.

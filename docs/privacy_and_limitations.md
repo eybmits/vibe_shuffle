@@ -30,6 +30,14 @@ playlist labels rather than measured Valence/Energy features.
 
 Spotify full-track playback requires Spotify Premium and an authenticated user.
 
+## Jamendo Catalog Limitations
+
+The Jamendo catalog path uses real instrumental tracks and keeps license URLs and
+download-permission flags. Valence and Energy are inferred from Jamendo
+musicinfo tags, speed labels, and waveform peaks. These annotations are
+reproducible and useful for the experiment, but they are still heuristic music
+emotion labels rather than externally validated ground truth.
+
 ## Scientific Limitations
 
 This is an MVP validation dashboard, not a validated affect-recognition system.
@@ -37,4 +45,5 @@ The expression classifier only distinguishes `happy` and `sad_low` in the
 current prototype. It should be treated as an experimental signal source.
 
 The bundled fallback catalog is useful for demos, but the final study should use
-a curated or Spotify-derived catalog aligned with the experimental design.
+the generated Jamendo catalog or another licensed source aligned with the
+experimental design.

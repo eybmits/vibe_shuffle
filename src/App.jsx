@@ -15,7 +15,7 @@ import {
   Sparkles,
   Waves,
 } from "lucide-react";
-import spotifyCatalog from "./data/spotifyCatalog.json";
+import musicCatalog from "./data/musicCatalog.json";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 18;
@@ -78,8 +78,8 @@ const FALLBACK_PALETTE = ["#f8fafc", "#dbeafe", "#0f766e"];
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
 function getCatalogTracks() {
-  if (Array.isArray(spotifyCatalog)) return spotifyCatalog;
-  return spotifyCatalog.tracks ?? [];
+  if (Array.isArray(musicCatalog)) return musicCatalog;
+  return musicCatalog.tracks ?? [];
 }
 
 function normalizeSong(song, index) {
@@ -91,14 +91,17 @@ function normalizeSong(song, index) {
 
   return {
     id: song.id ?? song.spotifyId ?? `track-${index}`,
-    spotifyId: song.spotifyId ?? song.id ?? null,
+    jamendoId: song.jamendoId ?? null,
+    spotifyId: song.spotifyId ?? null,
     spotifyUri: song.spotifyUri ?? null,
     title: song.title ?? "Untitled track",
     artist: song.artist ?? "Unknown artist",
     album: song.album ?? "",
     albumImageUrl: song.albumImageUrl ?? null,
     audioUrl: song.audioUrl ?? song.previewUrl ?? null,
+    downloadUrl: song.downloadUrl ?? null,
     externalUrl: song.externalUrl ?? null,
+    licenseUrl: song.licenseUrl ?? null,
     durationMs: song.durationMs ?? null,
     valence: Number(song.valence ?? style.valence),
     energy: Number(song.energy ?? style.energy),
@@ -109,6 +112,9 @@ function normalizeSong(song, index) {
     quadrant,
     accent: song.accent ?? style.accent,
     palette: song.palette ?? FALLBACK_PALETTE,
+    analysisConfidence: Number(song.analysisConfidence ?? 0),
+    categorySource: song.categorySource ?? null,
+    source: song.source ?? null,
   };
 }
 
@@ -147,6 +153,8 @@ function ratingsToCsv(ratings) {
     "block_mode",
     "track_number",
     "song_id",
+    "song_source",
+    "jamendo_id",
     "spotify_id",
     "spotify_uri",
     "song_title",
@@ -157,6 +165,10 @@ function ratingsToCsv(ratings) {
     "song_energy",
     "song_instrumentalness",
     "song_speechiness",
+    "song_category_source",
+    "song_analysis_confidence",
+    "song_external_url",
+    "song_license_url",
     "detected_expression",
     "detected_expression_label",
     "detected_valence",
@@ -1204,7 +1216,7 @@ function IntroModal({
               <div className="flex items-center justify-between gap-3">
                 <span>
                   {!catalogRequiresSpotify
-                    ? "Real instrumental fallback is ready; Spotify activates after importing tracks."
+                    ? "Real instrumental playback is ready."
                     : spotifyPlayer.ready
                       ? "Spotify playback device is connected."
                       : spotifyAuth.error || spotifyPlayer.error || "Connect Spotify Premium playback."}
@@ -1289,8 +1301,9 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
 
 export default function App() {
   const songs = useMemo(() => getCatalogTracks().map(normalizeSong), []);
-  const catalogSource = Array.isArray(spotifyCatalog) ? "legacy" : spotifyCatalog.source;
-  const catalogRequiresSpotify = songs.some((song) => song.spotifyUri);
+  const catalogSource = Array.isArray(musicCatalog) ? "legacy" : musicCatalog.source;
+  const catalogRequiresSpotify =
+    catalogSource?.startsWith("spotify") && songs.some((song) => song.spotifyUri);
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
   const spotifyPlayerReady = spotifyPlayer.ready;
@@ -1336,7 +1349,7 @@ export default function App() {
   const cameraReady = face.status === "ready" || face.status === "searching";
   const playbackReady = !catalogRequiresSpotify || spotifyPlayerReady;
   const setupReady = playbackReady;
-  const isDemoCatalog = catalogSource !== "spotify";
+  const isFallbackCatalog = catalogSource === "real-instrumental-demo" || catalogSource === "legacy";
 
   useEffect(() => {
     if (!sessionStarted || !isPlaying || protocolComplete || ratingPromptOpen || currentRating) {
@@ -1498,6 +1511,8 @@ export default function App() {
         mode,
         track_number: currentTrackIndex + 1,
         song_id: currentSong.id,
+        song_source: currentSong.source ?? catalogSource,
+        jamendo_id: currentSong.jamendoId,
         spotify_id: currentSong.spotifyId,
         spotify_uri: currentSong.spotifyUri,
         song_title: currentSong.title,
@@ -1508,6 +1523,10 @@ export default function App() {
         song_energy: currentSong.energy,
         song_instrumentalness: currentSong.instrumentalness,
         song_speechiness: currentSong.speechiness,
+        song_category_source: currentSong.categorySource,
+        song_analysis_confidence: currentSong.analysisConfidence,
+        song_external_url: currentSong.externalUrl,
+        song_license_url: currentSong.licenseUrl,
         detected_expression: mood.tag,
         detected_expression_label: mood.label,
         detected_valence: mood.valence,
@@ -1584,7 +1603,8 @@ export default function App() {
           </h1>
           <p className="mt-2 text-sm text-slate-600">
             Run <span className="font-mono">npm run spotify:catalog</span> with Spotify credentials
-            and a playlist URL to generate the track catalog.
+            or <span className="font-mono">npm run jamendo:catalog</span> with a Jamendo Client ID
+            to generate the track catalog.
           </p>
         </section>
       </main>
@@ -1626,11 +1646,11 @@ export default function App() {
           </div>
         </header>
 
-        {isDemoCatalog ? (
+        {isFallbackCatalog ? (
           <section className="rounded-lg border border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-800">
             Real instrumental fallback loaded. Run{" "}
-            <span className="font-mono">npm run spotify:catalog</span> to replace it with the
-            Spotify-derived 100-track instrumental pool.
+            <span className="font-mono">npm run jamendo:catalog</span> to replace it with a
+            Jamendo-derived 100-track instrumental pool.
           </section>
         ) : null}
 

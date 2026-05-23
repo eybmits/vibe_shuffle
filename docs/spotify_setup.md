@@ -7,6 +7,10 @@ Spotify is used in two separate ways:
 
 These require different credentials and limitations.
 
+For the real 100-track instrumental catalog, prefer
+[`music_catalog.md`](music_catalog.md). Spotify should not be used as a download
+source for audio files.
+
 ## Required Developer App
 
 Create a Spotify Developer app and configure redirect URIs for local and

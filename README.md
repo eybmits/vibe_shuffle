@@ -15,8 +15,9 @@ https://eybmits.github.io/vibe_shuffle_site/
 
 - Runs a fixed validation protocol: Random Shuffle first, then Vibe Shuffle.
 - Keeps the condition hidden from the participant.
-- Plays real instrumental fallback tracks immediately, without Spotify setup.
-- Supports Spotify catalog generation via curated playlists or Audio Features.
+- Plays real instrumental fallback tracks immediately, without external setup.
+- Supports a legal 100-track Jamendo catalog with downloadable instrumental audio.
+- Keeps Spotify as an optional metadata/playback path, not as the download source.
 - Uses local MediaPipe Face Landmarker blendshapes for expression detection.
 - Requires a 1-4 mood-fit rating after every track.
 - Exports session ratings as a CSV file.
@@ -24,9 +25,10 @@ https://eybmits.github.io/vibe_shuffle_site/
 ## Current Prototype Status
 
 The deployed app is ready for coauthor review as an MVP demo. It currently uses
-the bundled real instrumental fallback catalog. The Spotify import path is
-implemented, but a real Spotify catalog has not been generated because Spotify
-credentials and playlist URLs are intentionally not committed.
+the bundled real instrumental fallback catalog. The preferred final catalog path
+is Jamendo: the script collects up to 100 real instrumental tracks, keeps
+license/download metadata, estimates Valence/Energy from Jamendo music metadata
+and waveform peaks, and writes the static catalog used by the app.
 
 The camera detector is expression detection, not identity recognition. Camera
 frames stay in the browser and are not stored in the exported CSV.
@@ -53,9 +55,41 @@ npm audit --omit=dev
 npm run check:catalog-script
 ```
 
+## Real 100-Track Music Catalog
+
+The app reads a static catalog from `src/data/musicCatalog.json`.
+
+Preferred path:
+
+```bash
+JAMENDO_CLIENT_ID="..." npm run jamendo:catalog
+```
+
+The Jamendo script:
+
+- filters for `vocalinstrumental=instrumental`,
+- keeps only tracks with playable audio and cover art,
+- by default requires `audiodownload_allowed=true`,
+- estimates `valence` and `energy` from Jamendo mood tags, speed labels, and
+  waveform peaks,
+- assigns one of `happy`, `relaxed`, `tense`, or `sad_low`,
+- writes `src/data/musicCatalog.json` and `data/jamendo_catalog.csv`.
+
+Optional local audio audit:
+
+```bash
+JAMENDO_CLIENT_ID="..." \
+JAMENDO_DOWNLOAD_AUDIO=true \
+npm run jamendo:catalog
+```
+
+Downloaded MP3 files are saved under `data/audio/jamendo/` and ignored by git.
+
 ## Spotify Catalog Modes
 
-The app reads a static catalog from `src/data/spotifyCatalog.json`.
+Spotify remains useful for browser playback and metadata, but Spotify content
+must not be downloaded. The Spotify importer writes both
+`src/data/spotifyCatalog.json` and `src/data/musicCatalog.json`.
 
 ### Curated Playlist Mode
 
@@ -113,6 +147,7 @@ The redirect URI must also be registered in the Spotify Developer Dashboard.
 
 - [Architecture](docs/architecture.md)
 - [Experiment protocol](docs/experiment_protocol.md)
+- [Real music catalog](docs/music_catalog.md)
 - [Spotify setup](docs/spotify_setup.md)
 - [Deployment](docs/deployment.md)
 - [Privacy and limitations](docs/privacy_and_limitations.md)

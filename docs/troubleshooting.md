@@ -38,6 +38,26 @@ SPOTIFY_HAPPY_PLAYLIST_URL=...
 SPOTIFY_SAD_PLAYLIST_URL=...
 ```
 
+## Jamendo Catalog Script Fails
+
+`Missing JAMENDO_CLIENT_ID` means no Jamendo developer credential is available.
+Create a Jamendo developer app, add the Client ID to an ignored `.env` file, and
+rerun:
+
+```bash
+JAMENDO_CLIENT_ID=...
+npm run jamendo:catalog
+```
+
+If fewer than 100 tracks are saved, loosen the discovery filters or add tags:
+
+```bash
+JAMENDO_DISCOVERY_TAGS="instrumental cinematic ambient piano electronic"
+```
+
+If local MP3 downloads fail for some tracks, leave `JAMENDO_DOWNLOAD_AUDIO=false`;
+the app can still play the Jamendo stream URLs stored in the catalog.
+
 ## GitHub Pages Shows An Old Build
 
 GitHub Pages and CDN caches can lag behind the latest push. Verify the HTML:

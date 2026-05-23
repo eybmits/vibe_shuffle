@@ -48,10 +48,11 @@ The exported CSV includes:
 - timestamp
 - block number and hidden block mode
 - track number
-- track id, Spotify id, Spotify URI
+- track id, source, Jamendo id, Spotify id, Spotify URI
 - title, artist, album
 - song quadrant
 - song Valence, Energy, instrumentalness, speechiness
+- catalog category source, analysis confidence, external URL, license URL
 - detected expression label
 - detected Valence, Energy, confidence
 - whether a face was visible

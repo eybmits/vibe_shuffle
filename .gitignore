@@ -9,3 +9,5 @@ node_modules/
 .venv/
 dist/
 build/
+data/audio/
+public/audio/
