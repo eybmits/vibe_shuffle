@@ -58,6 +58,17 @@ JAMENDO_DISCOVERY_TAGS="instrumental cinematic ambient piano electronic"
 If local MP3 downloads fail for some tracks, leave `JAMENDO_DOWNLOAD_AUDIO=false`;
 the app can still play the Jamendo stream URLs stored in the catalog.
 
+## Jamendo Login Is Not Available
+
+Use the no-login Internet Archive fallback:
+
+```bash
+npm run archive:catalog
+```
+
+This creates the same `src/data/musicCatalog.json` file from licensed
+Internet Archive instrumental MP3s.
+
 ## GitHub Pages Shows An Old Build
 
 GitHub Pages and CDN caches can lag behind the latest push. Verify the HTML:

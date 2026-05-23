@@ -10,6 +10,8 @@ client-only; there is no backend service.
 - `src/data/musicCatalog.json`: static track catalog consumed by the app.
 - `src/data/spotifyCatalog.json`: legacy/optional Spotify catalog output.
 - `scripts/build_jamendo_catalog.mjs`: preferred real-music catalog generator.
+- `scripts/build_internet_archive_catalog.mjs`: no-login real-music fallback
+  generator.
 - `scripts/build_spotify_catalog.mjs`: build-time Spotify catalog generator.
 - `src/index.css`: Tailwind entrypoint and global base styles.
 

@@ -85,6 +85,16 @@ npm run jamendo:catalog
 
 Downloaded MP3 files are saved under `data/audio/jamendo/` and ignored by git.
 
+No-login fallback used for the public demo:
+
+```bash
+npm run archive:catalog
+```
+
+This uses the Internet Archive advanced search and metadata APIs to collect
+licensed instrumental MP3 files from the `netlabels` collection without any API key. It writes
+`src/data/musicCatalog.json` and `data/internet_archive_catalog.csv`.
+
 ## Spotify Catalog Modes
 
 Spotify remains useful for browser playback and metadata, but Spotify content

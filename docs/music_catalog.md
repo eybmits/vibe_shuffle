@@ -4,6 +4,9 @@ The preferred production catalog uses Jamendo because it provides real tracks,
 stream URLs, download permission flags, licensing metadata, cover art, and
 instrumental metadata through an API.
 
+The repository also includes an Internet Archive fallback that needs no login or
+API key. That fallback is useful when no Jamendo Client ID is available.
+
 ## Why Not Download From Spotify
 
 Spotify can provide catalog metadata and, with Premium, playback through the Web
@@ -49,6 +52,32 @@ Generated files:
 
 - `src/data/musicCatalog.json`: static catalog consumed by the app.
 - `data/jamendo_catalog.csv`: tabular audit/export file.
+
+## No-Login Internet Archive Fallback
+
+If no Jamendo Client ID is available, build a real instrumental catalog from
+Internet Archive:
+
+```bash
+npm run archive:catalog
+```
+
+Generated files:
+
+- `src/data/musicCatalog.json`
+- `data/internet_archive_catalog.csv`
+
+The script queries licensed `netlabels` items with instrumental metadata,
+selects playable MP3 files, keeps Internet Archive item URLs and license URLs,
+and estimates Valence/Energy from subjects, titles, query context, and file
+metadata. You can override the collection for exploration:
+
+```bash
+ARCHIVE_COLLECTION=opensource_audio npm run archive:catalog
+```
+
+This path avoids account setup, but the music metadata is less curated than
+Jamendo. Coauthors should audit the generated CSV before a formal experiment.
 
 ## Filtering
 
