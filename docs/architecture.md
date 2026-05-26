@@ -9,6 +9,8 @@ client-only; there is no backend service.
   expression sampling, track ranking, rating modal, and CSV export.
 - `src/expressionModel.js`: pure local expression scoring, baseline
   calibration, temporal switching, and listening-window summaries.
+- `src/physiologyModel.js`: pure BLE heart-rate parsing, RR filtering, HRV
+  metrics, baseline normalization, and face/ECG fusion.
 - `src/data/musicCatalog.json`: static track catalog consumed by the app.
 - `src/data/spotifyCatalog.json`: legacy/optional Spotify catalog output.
 - `scripts/build_curated_instrumental_catalog.mjs`: current public-demo
@@ -29,13 +31,16 @@ client-only; there is no backend service.
 3. The validation protocol starts with Random Shuffle and then Vibe Shuffle.
 4. Expression samples are estimated locally with MediaPipe Face Landmarker
    blendshapes.
-5. Random Shuffle ignores expression state for track selection.
-6. At the end of each listening window, the app averages the expression samples
-   from that window.
-7. Vibe Shuffle ranks the next track by that window-average expression state and
-   recent-play avoidance.
-8. After each listening window, the participant must submit a 1-4 rating.
-9. At protocol completion, ratings are exported as CSV.
+5. Optional ECG/heart-rate samples are read locally through Web Bluetooth Heart
+   Rate Service notifications.
+6. Random Shuffle ignores expression and physiology state for track selection.
+7. At the end of each listening window, the app averages expression samples and
+   summarizes HR/HRV samples from that window.
+8. Vibe Shuffle ranks the next track by fused face Valence plus ECG/HRV arousal
+   when physiology quality is good; otherwise it falls back to face-only window
+   selection.
+9. After each listening window, the participant must submit a 1-4 rating.
+10. At protocol completion, ratings are exported as CSV.
 
 ## Expression Detection
 
@@ -56,6 +61,20 @@ evidence plus low smile evidence. Camera frames are not stored or uploaded.
 Track selection uses the average expression scores across the just-finished
 listening window, not the last detected instant. This makes brief end-of-song
 noise less likely to control the next Vibe Shuffle track.
+
+## ECG / HRV Signal
+
+The browser can connect to standard Bluetooth Heart Rate Service devices and
+parse Heart Rate Measurement packets. HRV requires RR intervals; bpm-only
+devices are logged as `bpm_only` and do not drive selection. RR intervals are
+filtered to `300-2000 ms`, implausible jumps are rejected as artifacts, and the
+app computes mean HR, mean RR, RMSSD, SDNN, pNN20, RR count, and artifact rate.
+
+After connection, the app runs a neutral 60 second baseline and stores only
+session-local baseline statistics. In Vibe Shuffle, physiology contributes
+arousal/energy, while the face-expression window remains the primary Valence
+signal. This follows the project constraint that HR/HRV should not be treated as
+a standalone emotion classifier.
 
 ## Playback Paths
 

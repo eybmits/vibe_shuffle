@@ -19,6 +19,17 @@ window is 18 seconds. The next track cannot start until a rating is selected.
 - The app can start without camera access; it records a temporary fallback
   expression state until the camera is enabled.
 
+## Heart-Rate Sensor Does Not Connect
+
+- Use a Chromium-based browser with Web Bluetooth enabled.
+- Use HTTPS or `localhost`; Web Bluetooth is not available from ordinary
+  insecure origins.
+- Use a device that exposes the standard Bluetooth Heart Rate Service.
+- If the sensor exposes bpm but no RR intervals, the app logs HR but marks HRV
+  quality as `bpm_only`.
+- The experiment can run without ECG/HRV; click `Skip ECG` or use the `Demo`
+  sensor for local testing.
+
 ## Spotify Catalog Script Fails
 
 `Missing SPOTIFY_CLIENT_ID` means credentials are not set.

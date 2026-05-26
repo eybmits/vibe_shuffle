@@ -5,6 +5,7 @@ import {
   Camera,
   CheckCircle2,
   Download,
+  HeartPulse,
   Lock,
   Pause,
   Play,
@@ -24,6 +25,14 @@ import {
   summarizeExpressionSamples,
   updateExpressionTracker,
 } from "./expressionModel.js";
+import {
+  PHYSIOLOGY_BASELINE_SECONDS,
+  PHYSIOLOGY_WINDOW_MS,
+  createPhysiologyBaseline,
+  fuseEmotionSignals,
+  parseHeartRateMeasurement,
+  summarizePhysiologyMeasurements,
+} from "./physiologyModel.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 18;
@@ -187,6 +196,21 @@ function ratingsToCsv(ratings) {
     "mean_relaxed",
     "mean_tense",
     "mean_sad_low",
+    "ecg_connected",
+    "physiology_quality",
+    "hr_bpm_mean",
+    "rr_count",
+    "rr_artifact_rate",
+    "rmssd_ms",
+    "sdnn_ms",
+    "pnn20",
+    "baseline_hr_bpm",
+    "baseline_rmssd_ms",
+    "z_hr",
+    "z_rmssd",
+    "physiology_arousal",
+    "fusion_valence",
+    "fusion_energy",
     "selection_signal_source",
     "rating_1_to_4",
   ];
@@ -262,6 +286,17 @@ function expressionStateToMood(expressionState) {
     scores: expressionState?.scores ?? initialExpressionScores(),
     valence: Number(expressionState?.valence ?? style.valence),
   };
+}
+
+function signalStateToMood(signalState) {
+  return expressionStateToMood({
+    confidence: signalState?.confidence ?? 0,
+    energy: signalState?.energy,
+    facePresent: true,
+    scores: signalState?.scores ?? initialExpressionScores(),
+    tag: signalState?.tag,
+    valence: signalState?.valence,
+  });
 }
 
 function base64UrlEncode(buffer) {
@@ -930,6 +965,254 @@ function useFaceExpression() {
   };
 }
 
+function createMockHeartRateMeasurement(index) {
+  const phase = index / 6;
+  const heartRateBpm = Math.round(73 + Math.sin(phase) * 3 + Math.sin(index / 17) * 2);
+  const baseRr = 60000 / heartRateBpm;
+  const rrIntervalsMs = [baseRr + Math.sin(index / 3) * 22, baseRr - Math.cos(index / 4) * 18];
+
+  return {
+    heartRateBpm,
+    rrIntervalsMs,
+    timestamp: Date.now(),
+  };
+}
+
+function createMockBaselineMeasurements() {
+  return Array.from({ length: 80 }, (_, index) => {
+    const rr = 820 + (index % 2 ? 32 : -28) + Math.sin(index / 5) * 12;
+    return {
+      heartRateBpm: Math.round(60000 / rr),
+      rrIntervalsMs: [rr],
+      timestamp: Date.now() - (80 - index) * 820,
+    };
+  });
+}
+
+function usePhysiologySensor() {
+  const deviceRef = useRef(null);
+  const characteristicRef = useRef(null);
+  const measurementsRef = useRef([]);
+  const baselineMeasurementsRef = useRef([]);
+  const baselineStartRef = useRef(null);
+  const sampleIdRef = useRef(0);
+  const mockIntervalRef = useRef(null);
+  const mockIndexRef = useRef(0);
+  const [state, setState] = useState(() => {
+    const emptySummary = summarizePhysiologyMeasurements([]);
+
+    return {
+      baseline: null,
+      baselineProgress: 0,
+      connected: false,
+      currentSummary: emptySummary,
+      error: "",
+      latestHeartRate: null,
+      sample: null,
+      sampleId: 0,
+      source: "none",
+      status: "idle",
+    };
+  });
+
+  const stopMock = useCallback(() => {
+    if (mockIntervalRef.current) {
+      window.clearInterval(mockIntervalRef.current);
+      mockIntervalRef.current = null;
+    }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    stopMock();
+    if (characteristicRef.current?.__vibeShuffleHandler) {
+      characteristicRef.current.removeEventListener(
+        "characteristicvaluechanged",
+        characteristicRef.current.__vibeShuffleHandler,
+      );
+    }
+    try {
+      deviceRef.current?.gatt?.disconnect?.();
+    } catch {
+      // Some browsers throw if the device is already disconnected.
+    }
+    deviceRef.current = null;
+    characteristicRef.current = null;
+    measurementsRef.current = [];
+    baselineMeasurementsRef.current = [];
+    baselineStartRef.current = null;
+    sampleIdRef.current = 0;
+    setState({
+      baseline: null,
+      baselineProgress: 0,
+      connected: false,
+      currentSummary: summarizePhysiologyMeasurements([]),
+      error: "",
+      latestHeartRate: null,
+      sample: null,
+      sampleId: 0,
+      source: "none",
+      status: "idle",
+    });
+  }, [stopMock]);
+
+  const applyMeasurement = useCallback((measurement, source) => {
+    const now = measurement.timestamp ?? Date.now();
+    const nextMeasurement = { ...measurement, timestamp: now };
+    const cutoff = now - PHYSIOLOGY_WINDOW_MS;
+
+    measurementsRef.current = [...measurementsRef.current, nextMeasurement].filter(
+      (item) => item.timestamp >= cutoff,
+    );
+
+    setState((current) => {
+      const baseline = current.baseline;
+      let nextBaseline = baseline;
+      let baselineProgress = current.baselineProgress;
+      let status = current.status;
+
+      if (!baseline) {
+        baselineStartRef.current ??= now;
+        baselineMeasurementsRef.current = [...baselineMeasurementsRef.current, nextMeasurement];
+        baselineProgress = Math.min(
+          1,
+          (now - baselineStartRef.current) / (PHYSIOLOGY_BASELINE_SECONDS * 1000),
+        );
+
+        const baselineSummary = summarizePhysiologyMeasurements(baselineMeasurementsRef.current);
+        if (baselineProgress >= 1) {
+          nextBaseline =
+            baselineSummary.physiology_quality === "good"
+              ? createPhysiologyBaseline(baselineMeasurementsRef.current)
+              : null;
+          status = "ready";
+          baselineProgress = 1;
+        } else {
+          status = "baselining";
+        }
+      }
+
+      const currentSummary = summarizePhysiologyMeasurements(
+        measurementsRef.current,
+        nextBaseline,
+        current.currentSummary,
+      );
+      sampleIdRef.current += 1;
+
+      return {
+        ...current,
+        baseline: nextBaseline,
+        baselineProgress,
+        connected: true,
+        currentSummary,
+        error: "",
+        latestHeartRate: nextMeasurement.heartRateBpm ?? current.latestHeartRate,
+        sample: nextMeasurement,
+        sampleId: sampleIdRef.current,
+        source,
+        status,
+      };
+    });
+  }, []);
+
+  const startMock = useCallback(() => {
+    stopMock();
+    const baselineMeasurements = createMockBaselineMeasurements();
+    const baseline = createPhysiologyBaseline(baselineMeasurements);
+    baselineMeasurementsRef.current = baselineMeasurements;
+    measurementsRef.current = baselineMeasurements.slice(-20);
+    baselineStartRef.current = Date.now() - PHYSIOLOGY_BASELINE_SECONDS * 1000;
+    mockIndexRef.current = 0;
+    sampleIdRef.current += 1;
+
+    setState({
+      baseline,
+      baselineProgress: 1,
+      connected: true,
+      currentSummary: summarizePhysiologyMeasurements(measurementsRef.current, baseline),
+      error: "",
+      latestHeartRate: baseline.median_hr_bpm,
+      sample: measurementsRef.current.at(-1),
+      sampleId: sampleIdRef.current,
+      source: "mock",
+      status: "ready",
+    });
+
+    mockIntervalRef.current = window.setInterval(() => {
+      mockIndexRef.current += 1;
+      applyMeasurement(createMockHeartRateMeasurement(mockIndexRef.current), "mock");
+    }, 1000);
+  }, [applyMeasurement, stopMock]);
+
+  const connectBle = useCallback(async () => {
+    if (!navigator.bluetooth) {
+      setState((current) => ({
+        ...current,
+        error: "Web Bluetooth is not available in this browser.",
+        status: "error",
+      }));
+      return;
+    }
+
+    try {
+      disconnect();
+      setState((current) => ({ ...current, error: "", source: "ble", status: "connecting" }));
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: ["heart_rate"] }],
+      });
+      deviceRef.current = device;
+      device.addEventListener("gattserverdisconnected", disconnect);
+      const server = await device.gatt.connect();
+      const service = await server.getPrimaryService("heart_rate");
+      const characteristic = await service.getCharacteristic("heart_rate_measurement");
+      const handleMeasurement = (event) => {
+        try {
+          applyMeasurement(parseHeartRateMeasurement(event.target.value), "ble");
+        } catch {
+          setState((current) => ({
+            ...current,
+            error: "Heart-rate packet could not be parsed.",
+          }));
+        }
+      };
+
+      characteristic.__vibeShuffleHandler = handleMeasurement;
+      characteristic.addEventListener("characteristicvaluechanged", handleMeasurement);
+      await characteristic.startNotifications();
+      characteristicRef.current = characteristic;
+      baselineStartRef.current = Date.now();
+      setState((current) => ({
+        ...current,
+        baseline: null,
+        baselineProgress: 0,
+        connected: true,
+        error: "",
+        source: "ble",
+        status: "baselining",
+      }));
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        connected: false,
+        error:
+          error?.name === "NotFoundError"
+            ? "No heart-rate sensor was selected."
+            : "Heart-rate sensor could not connect.",
+        source: "none",
+        status: "error",
+      }));
+    }
+  }, [applyMeasurement, disconnect]);
+
+  useEffect(() => disconnect, [disconnect]);
+
+  return {
+    ...state,
+    connectBle,
+    disconnect,
+    startMock,
+  };
+}
+
 function SectionLabel({ children, icon: Icon }) {
   return (
     <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1076,6 +1359,65 @@ function CameraPanel({ face }) {
   );
 }
 
+function PhysiologyPanel({ physiology }) {
+  const summary = physiology.currentSummary;
+  const statusLabel =
+    physiology.status === "ready"
+      ? physiology.source === "mock"
+        ? "Demo sensor ready"
+        : "ECG ready"
+      : physiology.status === "baselining"
+        ? `Baseline ${Math.round(physiology.baselineProgress * 100)}%`
+        : physiology.status === "connecting"
+          ? "Connecting"
+          : physiology.status === "error"
+            ? "Sensor unavailable"
+            : "Optional";
+  const rmssdLabel = Number.isFinite(summary.rmssd_ms)
+    ? `${Math.round(summary.rmssd_ms)} ms`
+    : "No RR";
+  const arousalLabel = Number.isFinite(summary.physiology_arousal)
+    ? `${Math.round(summary.physiology_arousal * 100)}%`
+    : "Face only";
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <SectionLabel icon={HeartPulse}>Physiology signal</SectionLabel>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+          {statusLabel}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg bg-slate-50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            HR
+          </div>
+          <div className="mt-1 text-lg font-semibold text-slate-950">
+            {summary.hr_bpm_mean ? `${Math.round(summary.hr_bpm_mean)} bpm` : "-"}
+          </div>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            RMSSD
+          </div>
+          <div className="mt-1 text-lg font-semibold text-slate-950">{rmssdLabel}</div>
+        </div>
+        <div className="rounded-lg bg-slate-50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Arousal
+          </div>
+          <div className="mt-1 text-lg font-semibold text-slate-950">{arousalLabel}</div>
+        </div>
+      </div>
+      <p className="mt-3 text-xs leading-5 text-slate-500">
+        HRV is used only when RR intervals are available and baseline quality is good.
+      </p>
+      {physiology.error ? <p className="mt-3 text-sm text-rose-600">{physiology.error}</p> : null}
+    </section>
+  );
+}
+
 function SetupStep({ children, complete, icon: Icon, title }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -1100,10 +1442,14 @@ function IntroModal({
   cameraReady,
   catalogRequiresSpotify,
   face,
+  onConnectHeartSensor,
   onConnectSpotify,
+  onDisconnectHeartSensor,
   onStart,
   onStartCamera,
+  onStartMockHeartSensor,
   open,
+  physiology,
   setupReady,
   spotifyAuth,
   spotifyPlayer,
@@ -1112,6 +1458,19 @@ function IntroModal({
   if (!open) return null;
 
   const spotifyReady = !catalogRequiresSpotify || spotifyPlayer.ready;
+  const physiologyReady = !physiology.connected || physiology.status === "ready";
+  const physiologyStatusText =
+    physiology.status === "ready"
+      ? physiology.baseline
+        ? physiology.source === "mock"
+          ? "Demo ECG baseline is ready."
+          : "Heart-rate baseline is ready."
+        : "Heart-rate sensor is connected; HRV is not driving selection."
+      : physiology.status === "baselining"
+        ? `Neutral baseline ${Math.round(physiology.baselineProgress * 100)}% complete.`
+        : physiology.status === "connecting"
+          ? "Connecting to heart-rate sensor."
+          : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/75 px-4 py-6 backdrop-blur-md">
@@ -1146,8 +1505,8 @@ function IntroModal({
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
               The camera estimates only a coarse expression signal locally in this browser. Images
-              are not saved. The detector uses a short neutral baseline and then estimates Happy,
-              Relaxed, Tense, or Sad-low. Music starts only after you press the player button.
+              are not saved. Optional ECG/HRV stays local and is used only as an arousal signal
+              after a neutral baseline. Music starts only after you press the player button.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
@@ -1177,6 +1536,37 @@ function IntroModal({
                     type="button"
                   >
                     Enable
+                  </button>
+                ) : null}
+              </div>
+            </SetupStep>
+            <SetupStep complete={physiologyReady} icon={HeartPulse} title="Heart-rate sensor">
+              <div className="flex flex-col gap-3">
+                <span>{physiologyStatusText}</span>
+                {physiology.status === "idle" || physiology.status === "error" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+                      onClick={onConnectHeartSensor}
+                      type="button"
+                    >
+                      Connect
+                    </button>
+                    <button
+                      className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+                      onClick={onStartMockHeartSensor}
+                      type="button"
+                    >
+                      Demo
+                    </button>
+                  </div>
+                ) : physiology.connected ? (
+                  <button
+                    className="w-fit rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-100"
+                    onClick={onDisconnectHeartSensor}
+                    type="button"
+                  >
+                    Skip ECG
                   </button>
                 ) : null}
               </div>
@@ -1287,6 +1677,7 @@ export default function App() {
   const resumeDemoAudio = demoAudio.resume;
   const stopDemoAudio = demoAudio.stop;
   const face = useFaceExpression();
+  const physiology = usePhysiologySensor();
   const [sessionStarted, setSessionStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [protocolId, setProtocolId] = useState(() => createProtocolId());
@@ -1303,9 +1694,23 @@ export default function App() {
   const [playbackNotice, setPlaybackNotice] = useState("");
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
+  const physiologyWindowRef = useRef([]);
+  const lastPhysiologySampleIdRef = useRef(0);
 
   const mode = PROTOCOL_BLOCKS[currentBlockIndex].mode;
-  const mood = face;
+  const liveFusion = useMemo(
+    () => fuseEmotionSignals(face, physiology.currentSummary),
+    [
+      face.confidence,
+      face.energy,
+      face.tag,
+      face.valence,
+      physiology.currentSummary.physiology_arousal,
+      physiology.currentSummary.physiology_quality,
+      physiology.currentSummary.rr_count,
+    ],
+  );
+  const mood = signalStateToMood(liveFusion);
   const recentIds = useMemo(() => history.slice(-8).map((song) => song.id), [history]);
   const queue = useMemo(
     () => rankSongs(songs, mode, mood, currentSong.id, queueSeed, recentIds).slice(0, 4),
@@ -1320,16 +1725,35 @@ export default function App() {
   const cameraReady =
     face.status === "ready" || face.status === "searching" || face.status === "calibrating";
   const playbackReady = !catalogRequiresSpotify || spotifyPlayerReady;
-  const setupReady = playbackReady;
+  const physiologyReady = !physiology.connected || physiology.status === "ready";
+  const setupReady = playbackReady && physiologyReady;
   const isFallbackCatalog = catalogSource === "real-instrumental-demo" || catalogSource === "legacy";
 
   function currentWindowSummary() {
     return summarizeExpressionSamples(expressionWindowRef.current, face);
   }
 
+  function currentPhysiologySummary() {
+    return summarizePhysiologyMeasurements(
+      physiologyWindowRef.current,
+      physiology.baseline,
+      physiology.currentSummary,
+    );
+  }
+
   function resetExpressionWindow() {
     expressionWindowRef.current = [];
     lastWindowSampleIdRef.current = face.sampleId ?? 0;
+  }
+
+  function resetPhysiologyWindow() {
+    physiologyWindowRef.current = [];
+    lastPhysiologySampleIdRef.current = physiology.sampleId ?? 0;
+  }
+
+  function resetSignalWindows() {
+    resetExpressionWindow();
+    resetPhysiologyWindow();
   }
 
   useEffect(() => {
@@ -1352,6 +1776,36 @@ export default function App() {
     face.sample,
     face.sampleId,
     isPlaying,
+    protocolComplete,
+    ratingPromptOpen,
+    sessionStarted,
+  ]);
+
+  useEffect(() => {
+    if (
+      !physiology.sampleId ||
+      physiology.sampleId === lastPhysiologySampleIdRef.current
+    ) {
+      return;
+    }
+
+    lastPhysiologySampleIdRef.current = physiology.sampleId;
+
+    if (
+      !sessionStarted ||
+      !isPlaying ||
+      ratingPromptOpen ||
+      protocolComplete ||
+      !physiology.sample
+    ) {
+      return;
+    }
+
+    physiologyWindowRef.current = [...physiologyWindowRef.current.slice(-180), physiology.sample];
+  }, [
+    isPlaying,
+    physiology.sample,
+    physiology.sampleId,
     protocolComplete,
     ratingPromptOpen,
     sessionStarted,
@@ -1439,7 +1893,7 @@ export default function App() {
 
   function startSession() {
     if (!setupReady || !songs.length) return;
-    resetExpressionWindow();
+    resetSignalWindows();
     setSessionStarted(true);
     setIsPlaying(false);
     setTrackProgress(0);
@@ -1447,7 +1901,7 @@ export default function App() {
   }
 
   function moveToSong(song) {
-    resetExpressionWindow();
+    resetSignalWindows();
     setHistory((items) => [...items.slice(-8), currentSong]);
     setCurrentSong(song);
     setTrialId((value) => value + 1);
@@ -1460,7 +1914,8 @@ export default function App() {
   function advanceProtocol() {
     if (!currentRating || protocolComplete) return;
 
-    const selectionMood = expressionStateToMood(currentWindowSummary());
+    const selectionFusion = fuseEmotionSignals(currentWindowSummary(), currentPhysiologySummary());
+    const selectionMood = signalStateToMood(selectionFusion);
     const rankedSongs = rankSongs(songs, mode, selectionMood, currentSong.id, queueSeed, recentIds);
     const nextSong = rankedSongs[0] ?? queue[0] ?? songs[0];
     const isLastTrackInBlock = currentTrackIndex === TRACKS_PER_BLOCK - 1;
@@ -1502,7 +1957,9 @@ export default function App() {
 
     setRatings((items) => {
       const expressionSummary = currentWindowSummary();
-      const ratingMood = expressionStateToMood(expressionSummary);
+      const expressionMood = expressionStateToMood(expressionSummary);
+      const physiologySummary = currentPhysiologySummary();
+      const fusionSummary = fuseEmotionSignals(expressionSummary, physiologySummary);
       const nextRating = {
         protocol_id: protocolId,
         trial_id: trialId,
@@ -1528,12 +1985,12 @@ export default function App() {
         song_analysis_confidence: currentSong.analysisConfidence,
         song_external_url: currentSong.externalUrl,
         song_license_url: currentSong.licenseUrl,
-        detected_expression: ratingMood.tag,
-        detected_expression_label: ratingMood.label,
-        detected_valence: Number(ratingMood.valence.toFixed(3)),
-        detected_energy: Number(ratingMood.energy.toFixed(3)),
-        expression_confidence: Number(ratingMood.confidence.toFixed(3)),
-        face_present: ratingMood.facePresent,
+        detected_expression: expressionMood.tag,
+        detected_expression_label: expressionMood.label,
+        detected_valence: Number(expressionMood.valence.toFixed(3)),
+        detected_energy: Number(expressionMood.energy.toFixed(3)),
+        expression_confidence: Number(expressionMood.confidence.toFixed(3)),
+        face_present: expressionMood.facePresent,
         window_expression: expressionSummary.tag,
         window_expression_confidence: Number(expressionSummary.confidence.toFixed(3)),
         window_sample_count: expressionSummary.sampleCount,
@@ -1541,7 +1998,22 @@ export default function App() {
         mean_relaxed: Number(expressionSummary.mean_relaxed.toFixed(3)),
         mean_tense: Number(expressionSummary.mean_tense.toFixed(3)),
         mean_sad_low: Number(expressionSummary.mean_sad_low.toFixed(3)),
-        selection_signal_source: "window_average",
+        ecg_connected: physiology.connected,
+        physiology_quality: physiologySummary.physiology_quality,
+        hr_bpm_mean: physiologySummary.hr_bpm_mean,
+        rr_count: physiologySummary.rr_count,
+        rr_artifact_rate: physiologySummary.artifact_rate,
+        rmssd_ms: physiologySummary.rmssd_ms,
+        sdnn_ms: physiologySummary.sdnn_ms,
+        pnn20: physiologySummary.pnn20,
+        baseline_hr_bpm: physiologySummary.baseline_hr_bpm,
+        baseline_rmssd_ms: physiologySummary.baseline_rmssd_ms,
+        z_hr: physiologySummary.z_hr,
+        z_rmssd: physiologySummary.z_rmssd,
+        physiology_arousal: physiologySummary.physiology_arousal,
+        fusion_valence: Number(fusionSummary.valence.toFixed(3)),
+        fusion_energy: Number(fusionSummary.energy.toFixed(3)),
+        selection_signal_source: fusionSummary.selectionSignalSource,
         rating_1_to_4: score,
         score,
       };
@@ -1555,7 +2027,7 @@ export default function App() {
   }
 
   function resetProtocol() {
-    resetExpressionWindow();
+    resetSignalWindows();
     setProtocolId(createProtocolId());
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
@@ -1768,6 +2240,7 @@ export default function App() {
             </section>
 
             <CameraPanel face={face} />
+            <PhysiologyPanel physiology={physiology} />
           </div>
         </section>
 
@@ -1813,10 +2286,14 @@ export default function App() {
         cameraReady={cameraReady}
         catalogRequiresSpotify={catalogRequiresSpotify}
         face={face}
+        onConnectHeartSensor={physiology.connectBle}
         onConnectSpotify={spotifyAuth.connect}
+        onDisconnectHeartSensor={physiology.disconnect}
         onStart={startSession}
         onStartCamera={face.start}
+        onStartMockHeartSensor={physiology.startMock}
         open={!sessionStarted && !protocolComplete}
+        physiology={physiology}
         setupReady={setupReady}
         spotifyAuth={spotifyAuth}
         spotifyPlayer={spotifyPlayer}

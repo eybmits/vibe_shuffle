@@ -25,13 +25,16 @@ Random Shuffle:
 Vibe Shuffle:
 
 - Uses the averaged expression state from the just-finished listening window.
-- Maps expression to `happy`, `relaxed`, `tense`, or `sad_low`.
+- If ECG/HRV quality is good, fuses face-expression Valence with HR/HRV-derived
+  arousal.
+- Maps the fused Valence/Energy state to `happy`, `relaxed`, `tense`, or
+  `sad_low`.
 - Selects from the matching track quadrant when available.
 - Falls back to the broader catalog if the matching pool is empty.
 
 The live camera panel may update during playback, but Vibe track selection is
-based on the listening-window average. A brief last-second expression spike
-therefore does not dominate the next song choice.
+based on the listening-window average. A brief last-second expression or
+physiology spike therefore does not dominate the next song choice.
 
 ## Rating
 
@@ -63,7 +66,12 @@ The exported CSV includes:
 - window-average expression label and confidence
 - number of expression samples in the listening window
 - mean `happy`, `relaxed`, `tense`, and `sad_low` scores
-- selection signal source (`window_average`)
+- ECG connection state and physiology quality
+- HR/HRV features: mean HR, RR count, artifact rate, RMSSD, SDNN, pNN20
+- baseline HR/RMSSD and normalized HR/RMSSD deviations
+- physiology arousal plus fused Valence/Energy
+- selection signal source (`window_average` or `face_window_plus_ecg_arousal`)
 - rating from 1 to 4
 
-The CSV does not include camera frames, face images, or identity data.
+The CSV does not include camera frames, face images, raw ECG waveforms, or
+identity data.

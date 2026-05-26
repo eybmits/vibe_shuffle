@@ -5,7 +5,8 @@ validation study. It compares a passive Random Shuffle block against a
 mood-adaptive Vibe Shuffle block. The current prototype estimates the
 participant's expression locally in the browser, maps it to `happy`, `relaxed`,
 `tense`, or `sad_low`, and selects the next adaptive track from the averaged
-expression state over the just-finished listening window.
+expression state plus optional ECG/HRV arousal over the just-finished listening
+window.
 
 Live demo:
 
@@ -21,6 +22,8 @@ https://eybmits.github.io/vibe_shuffle_site/
 - Uses local MediaPipe Face Landmarker blendshapes for expression detection.
 - Keeps neutral/calm faces in `relaxed` unless there is sustained active
   expression evidence.
+- Supports optional Web Bluetooth heart-rate sensors. RR intervals enable HRV;
+  bpm-only devices are logged but not used for HRV-based selection.
 - Requires a 1-4 mood-fit rating after every track.
 - Exports session ratings as a CSV file.
 
@@ -32,8 +35,9 @@ is Jamendo: the script collects up to 100 real instrumental tracks, keeps
 license/download metadata, estimates Valence/Energy from Jamendo music metadata
 and waveform peaks, and writes the static catalog used by the app.
 
-The camera detector is expression detection, not identity recognition. Camera
-frames stay in the browser and are not stored in the exported CSV.
+The camera detector is expression detection, not identity recognition. Optional
+ECG/HRV is used as an arousal signal, not as a standalone emotion classifier.
+Camera frames and physiology streams stay in the browser and are not uploaded.
 
 ## Quick Start
 
@@ -54,9 +58,18 @@ Optional checks:
 
 ```bash
 npm audit --omit=dev
-npm run test:expression
+npm test
 npm run check:catalog-script
 ```
+
+## Optional ECG / HRV Input
+
+The browser app can connect to standard Bluetooth Heart Rate Service devices,
+for example chest straps that expose RR intervals. After connection, the app
+runs a neutral 60 second baseline before using HRV. Vibe Shuffle then fuses
+face-expression Valence with HR/HRV-derived arousal for adaptive track
+selection. The `Demo` sensor button provides a local mock ECG stream for browser
+testing without hardware.
 
 ## Real 100-Track Music Catalog
 

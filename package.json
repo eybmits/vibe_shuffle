@@ -27,6 +27,8 @@
     "spotify:catalog": "node scripts/build_spotify_catalog.mjs",
     "check:catalog-script": "node --check scripts/build_spotify_catalog.mjs && node --check scripts/build_jamendo_catalog.mjs && node --check scripts/build_internet_archive_catalog.mjs && node --check scripts/build_curated_instrumental_catalog.mjs",
     "test:expression": "node --test src/expressionModel.test.js",
+    "test:physiology": "node --test src/physiologyModel.test.js",
+    "test": "npm run test:expression && npm run test:physiology",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },

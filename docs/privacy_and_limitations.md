@@ -20,9 +20,11 @@ The CSV stores derived experimental data:
 - derived Valence/Energy estimates
 - expression confidence
 - window-average expression scores
+- optional ECG/HRV summary metrics and baseline-normalized arousal
 - rating
 
-It does not contain images, video, or face landmarks.
+It does not contain images, video, face landmarks, raw ECG waveforms, or raw
+camera frames.
 
 ## Expression API Scope
 
@@ -45,6 +47,25 @@ playlist labels rather than measured Valence/Energy features.
 
 Spotify full-track playback requires Spotify Premium and an authenticated user.
 
+## ECG / HRV Limitations
+
+The ECG/heart-rate path uses the browser's Web Bluetooth access to the standard
+[Bluetooth Heart Rate Service](https://www.bluetooth.com/wp-content/uploads/Files/Specification/HTML/HRS_v1.0/out/en/index-en.html).
+HRV requires RR intervals in the Heart Rate Measurement packets. Devices that
+only expose bpm are displayed and logged, but they are not used for HRV-based
+track selection.
+
+The physiology model uses personal baseline deviations. Higher HR with lower
+RMSSD/SDNN is treated as higher arousal, but HR/HRV is not used as a standalone
+emotion classifier. Recent Nature-family work supports physiology as useful for
+emotion recognition while also favoring multimodal signals, so this app uses
+face expression for Valence and ECG/HRV for arousal.
+
+Relevant references:
+
+- [Scientific Reports 2026: IoT-based emotion recognition using internal body parameters](https://www.nature.com/articles/s41598-026-35982-9)
+- [npj Flexible Electronics 2026: smart hoodie for emotion recognition and regulation](https://www.nature.com/articles/s41528-026-00585-x)
+
 ## Jamendo Catalog Limitations
 
 The Jamendo catalog path uses real instrumental tracks and keeps license URLs and
@@ -57,7 +78,8 @@ emotion labels rather than externally validated ground truth.
 
 This is an MVP validation dashboard, not a validated affect-recognition system.
 The expression classifier estimates `happy`, `relaxed`, `tense`, and `sad_low`.
-It should be treated as an experimental signal source.
+The ECG/HRV arousal estimate should also be treated as an experimental signal
+source.
 
 The bundled fallback catalog is useful for demos, but the final study should use
 the generated Jamendo catalog or another licensed source aligned with the
