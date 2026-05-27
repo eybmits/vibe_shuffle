@@ -51,7 +51,7 @@ is assigned by the source playlist:
 - Relaxed playlist -> `relaxed`
 - Tense playlist -> `tense`
 
-The resulting Valence/Energy values are category estimates, not Spotify Audio
+The resulting Valence/Arousal values are category estimates, not Spotify Audio
 Features.
 
 ## Audio Features Mode
@@ -64,8 +64,9 @@ SPOTIFY_PLAYLIST_URL=https://open.spotify.com/playlist/...
 npm run spotify:catalog
 ```
 
-The script queries Valence, Energy, instrumentalness, speechiness, danceability,
-and tempo. It filters for instrumental character:
+The script queries Spotify's Valence and `energy` audio-feature fields,
+instrumentalness, speechiness, danceability, and tempo. In the app UI, `energy`
+is presented as Arousal. It filters for instrumental character:
 
 - `instrumentalness >= 0.5`
 - `speechiness <= 0.33`

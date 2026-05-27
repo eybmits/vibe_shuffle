@@ -27,7 +27,8 @@ client-only; there is no backend service.
 1. The app loads `musicCatalog.json`.
 2. Each track is normalized into a common internal shape:
    `id`, `title`, `artist`, `spotifyUri`, `audioUrl`, `quadrant`,
-   `valence`, `energy`, `instrumentalness`, and visual styling fields.
+   `valence`, `energy`, `instrumentalness`, and visual styling fields. The
+   user-facing label for `energy` is Arousal.
 3. The validation protocol starts with Random Shuffle and then Vibe Shuffle.
 4. Expression samples are estimated locally with MediaPipe Face Landmarker
    blendshapes.
@@ -72,7 +73,7 @@ app computes mean HR, mean RR, RMSSD, SDNN, pNN20, RR count, and artifact rate.
 
 After connection, the app runs a neutral 60 second baseline and stores only
 session-local baseline statistics. In Vibe Shuffle, physiology contributes
-arousal/energy, while the face-expression window remains the primary Valence
+arousal, while the face-expression window remains the primary Valence
 signal. This follows the project constraint that HR/HRV should not be treated as
 a standalone emotion classifier.
 

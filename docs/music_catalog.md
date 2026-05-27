@@ -91,7 +91,7 @@ Generated files:
 
 The script queries licensed `netlabels` items with instrumental metadata,
 selects playable MP3 files, keeps Internet Archive item URLs and license URLs,
-and estimates Valence/Energy from subjects, titles, query context, and file
+and estimates Valence/Arousal from subjects, titles, query context, and file
 metadata. You can override the collection for exploration:
 
 ```bash
@@ -116,22 +116,23 @@ The script queries Jamendo with:
 The script does not force quadrant balance. If 100 eligible tracks naturally
 produce 11 `sad_low`, 37 `relaxed`, 24 `happy`, and 28 `tense`, that is kept.
 
-## Valence/Energy Assignment
+## Valence/Arousal Assignment
 
 Jamendo does not expose Spotify-style Audio Features. The script estimates the
 two axes from available real metadata:
 
 - Valence: Jamendo mood/theme tags such as `happy`, `uplifting`, `sad`,
   `melancholic`, `dark`, and `dramatic`.
-- Energy: Jamendo speed labels, high/low energy tags, and waveform peak
-  statistics.
+- Arousal: Jamendo speed labels, high/low energy tags, and waveform peak
+  statistics. The JSON field remains `energy` for compatibility with common
+  music-metadata terminology.
 
 Quadrants:
 
-- `happy`: high valence, high energy
-- `relaxed`: high valence, low energy
-- `tense`: low valence, high energy
-- `sad_low`: low valence, low energy
+- `happy`: high valence, high arousal
+- `relaxed`: high valence, low arousal
+- `tense`: low valence, high arousal
+- `sad_low`: low valence, low arousal
 
 These labels are reproducible catalog annotations, not clinical emotion ground
 truth.

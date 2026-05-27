@@ -59,7 +59,7 @@ const EMOTION_QUADRANTS = {
     accent: "#22c55e",
     valence: 0.82,
     energy: 0.78,
-    description: "High valence, high energy",
+    description: "High valence, high arousal",
   },
   relaxed: {
     label: "Relaxed",
@@ -67,7 +67,7 @@ const EMOTION_QUADRANTS = {
     accent: "#14b8a6",
     valence: 0.72,
     energy: 0.28,
-    description: "High valence, low energy",
+    description: "High valence, low arousal",
   },
   tense: {
     label: "Tense",
@@ -75,7 +75,7 @@ const EMOTION_QUADRANTS = {
     accent: "#f97316",
     valence: 0.28,
     energy: 0.74,
-    description: "Low valence, high energy",
+    description: "Low valence, high arousal",
   },
   sad_low: {
     label: "Sad-low",
@@ -83,7 +83,7 @@ const EMOTION_QUADRANTS = {
     accent: "#818cf8",
     valence: 0.3,
     energy: 0.26,
-    description: "Low valence, low energy",
+    description: "Low valence, low arousal",
   },
 };
 
@@ -176,7 +176,7 @@ function ratingsToCsv(ratings) {
     "album",
     "song_quadrant",
     "song_valence",
-    "song_energy",
+    "song_arousal",
     "song_instrumentalness",
     "song_speechiness",
     "song_category_source",
@@ -186,7 +186,7 @@ function ratingsToCsv(ratings) {
     "detected_expression",
     "detected_expression_label",
     "detected_valence",
-    "detected_energy",
+    "detected_arousal",
     "expression_confidence",
     "face_present",
     "window_expression",
@@ -210,7 +210,7 @@ function ratingsToCsv(ratings) {
     "z_rmssd",
     "physiology_arousal",
     "fusion_valence",
-    "fusion_energy",
+    "fusion_arousal",
     "selection_signal_source",
     "rating_1_to_4",
   ];
@@ -1278,10 +1278,10 @@ function MoodMap({ mood }) {
         }}
       />
       <span className="absolute left-1/2 top-3 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-        High energy
+        High arousal
       </span>
       <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-        Low energy
+        Low arousal
       </span>
       <span className="absolute left-2 top-1/2 -translate-y-1/2 -rotate-90 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
         Low valence
@@ -1335,7 +1335,7 @@ function CoverArt({ isPlaying, song }) {
         <div className="flex items-center justify-between border-t border-white/60 pt-4 text-white">
           <span className="text-xs font-bold uppercase tracking-[0.18em]">{song.quadrant}</span>
           <span className="text-xs font-bold uppercase tracking-[0.18em]">
-            {Math.round(song.valence * 100)}V/{Math.round(song.energy * 100)}E
+            {Math.round(song.valence * 100)}V/{Math.round(song.energy * 100)}A
           </span>
         </div>
       </div>
@@ -2047,7 +2047,7 @@ export default function App() {
         album: currentSong.album,
         song_quadrant: currentSong.quadrant,
         song_valence: currentSong.valence,
-        song_energy: currentSong.energy,
+        song_arousal: currentSong.energy,
         song_instrumentalness: currentSong.instrumentalness,
         song_speechiness: currentSong.speechiness,
         song_category_source: currentSong.categorySource,
@@ -2057,7 +2057,7 @@ export default function App() {
         detected_expression: expressionMood.tag,
         detected_expression_label: expressionMood.label,
         detected_valence: Number(expressionMood.valence.toFixed(3)),
-        detected_energy: Number(expressionMood.energy.toFixed(3)),
+        detected_arousal: Number(expressionMood.energy.toFixed(3)),
         expression_confidence: Number(expressionMood.confidence.toFixed(3)),
         face_present: expressionMood.facePresent,
         window_expression: expressionSummary.tag,
@@ -2081,7 +2081,7 @@ export default function App() {
         z_rmssd: physiologySummary.z_rmssd,
         physiology_arousal: physiologySummary.physiology_arousal,
         fusion_valence: Number(fusionSummary.valence.toFixed(3)),
-        fusion_energy: Number(fusionSummary.energy.toFixed(3)),
+        fusion_arousal: Number(fusionSummary.energy.toFixed(3)),
         selection_signal_source: fusionSummary.selectionSignalSource,
         rating_1_to_4: score,
         score,

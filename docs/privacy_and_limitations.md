@@ -17,7 +17,7 @@ The CSV stores derived experimental data:
 - track metadata
 - hidden condition label
 - detected expression state
-- derived Valence/Energy estimates
+- derived Valence/Arousal estimates
 - expression confidence
 - window-average expression scores
 - optional ECG/HRV summary metrics and baseline-normalized arousal
@@ -43,7 +43,7 @@ MediaPipe Face Landmarker as the defensible browser-local signal source.
 
 Spotify Audio Features are deprecated and may be blocked for newer apps. The
 curated playlist mode avoids this endpoint, but its categories are human-curated
-playlist labels rather than measured Valence/Energy features.
+playlist labels rather than measured Valence/Arousal features.
 
 Spotify full-track playback requires Spotify Premium and an authenticated user.
 
@@ -59,7 +59,7 @@ The physiology model uses personal baseline deviations. Higher HR with lower
 RMSSD/SDNN is treated as higher arousal, but HR/HRV is not used as a standalone
 emotion classifier. Recent Nature-family work supports physiology as useful for
 emotion recognition while also favoring multimodal signals, so this app uses
-face expression for Valence and ECG/HRV for arousal.
+face expression for Valence and ECG/HRV for Arousal.
 
 Relevant references:
 
@@ -69,7 +69,7 @@ Relevant references:
 ## Jamendo Catalog Limitations
 
 The Jamendo catalog path uses real instrumental tracks and keeps license URLs and
-download-permission flags. Valence and Energy are inferred from Jamendo
+download-permission flags. Valence and Arousal are inferred from Jamendo
 musicinfo tags, speed labels, and waveform peaks. These annotations are
 reproducible and useful for the experiment, but they are still heuristic music
 emotion labels rather than externally validated ground truth.

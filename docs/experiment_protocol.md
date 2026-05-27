@@ -26,8 +26,8 @@ Vibe Shuffle:
 
 - Uses the averaged expression state from the just-finished listening window.
 - If ECG/HRV quality is good, fuses face-expression Valence with HR/HRV-derived
-  arousal.
-- Maps the fused Valence/Energy state to `happy`, `relaxed`, `tense`, or
+  Arousal.
+- Maps the fused Valence/Arousal state to `happy`, `relaxed`, `tense`, or
   `sad_low`.
 - Selects from the matching track quadrant when available.
 - Falls back to the broader catalog if the matching pool is empty.
@@ -58,10 +58,10 @@ The exported CSV includes:
 - track id, source, Jamendo id, Spotify id, Spotify URI
 - title, artist, album
 - song quadrant
-- song Valence, Energy, instrumentalness, speechiness
+- song Valence, Arousal, instrumentalness, speechiness
 - catalog category source, analysis confidence, external URL, license URL
 - detected expression label
-- detected Valence, Energy, confidence
+- detected Valence, Arousal, confidence
 - whether a face was visible
 - window-average expression label and confidence
 - number of expression samples in the listening window
@@ -69,7 +69,7 @@ The exported CSV includes:
 - ECG connection state and physiology quality
 - HR/HRV features: mean HR, RR count, artifact rate, RMSSD, SDNN, pNN20
 - baseline HR/RMSSD and normalized HR/RMSSD deviations
-- physiology arousal plus fused Valence/Energy
+- physiology arousal plus fused Valence/Arousal
 - selection signal source (`window_average` or `face_window_plus_ecg_arousal`)
 - rating from 1 to 4
 

@@ -32,7 +32,7 @@ https://eybmits.github.io/vibe_shuffle_site/
 The deployed app is ready for coauthor review as an MVP demo. It currently uses
 the bundled real instrumental fallback catalog. The preferred final catalog path
 is Jamendo: the script collects up to 100 real instrumental tracks, keeps
-license/download metadata, estimates Valence/Energy from Jamendo music metadata
+license/download metadata, estimates Valence/Arousal from Jamendo music metadata
 and waveform peaks, and writes the static catalog used by the app.
 
 The camera detector is expression detection, not identity recognition. Optional
@@ -67,7 +67,7 @@ npm run check:catalog-script
 The browser app can connect to standard Bluetooth Heart Rate Service devices,
 for example chest straps that expose RR intervals. After connection, the app
 runs a neutral 60 second baseline before using HRV. Vibe Shuffle then fuses
-face-expression Valence with HR/HRV-derived arousal for adaptive track
+face-expression Valence with HR/HRV-derived Arousal for adaptive track
 selection. The `Demo` sensor button provides a local mock ECG stream for browser
 testing without hardware.
 
@@ -96,8 +96,9 @@ The Jamendo script:
 - filters for `vocalinstrumental=instrumental`,
 - keeps only tracks with playable audio and cover art,
 - by default requires `audiodownload_allowed=true`,
-- estimates `valence` and `energy` from Jamendo mood tags, speed labels, and
-  waveform peaks,
+- estimates `valence` and arousal from Jamendo mood tags, speed labels, and
+  waveform peaks. The static catalog field is still named `energy` for
+  compatibility with imported music metadata,
 - assigns one of `happy`, `relaxed`, `tense`, or `sad_low`,
 - writes `src/data/musicCatalog.json` and `data/jamendo_catalog.csv`.
 
