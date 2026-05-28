@@ -1537,7 +1537,7 @@ function SessionWaveform({ isPlaying, song }) {
   const heights = [34, 62, 44, 86, 54, 104, 66, 48, 78, 52, 96, 42, 70, 58, 88, 46];
 
   return (
-    <div className="flex h-14 items-end justify-center gap-1.5 rounded-lg border border-white/12 bg-white/6 px-3 py-3 backdrop-blur sm:h-20 sm:gap-2 sm:px-4 lg:h-20">
+    <div className="flex h-14 items-end justify-center gap-1.5 rounded-lg border border-white/12 bg-white/6 px-3 py-3 sm:h-20 sm:gap-2 sm:px-4 lg:h-20">
       {heights.map((height, index) => (
         <span
           className="w-full max-w-3 rounded-full bg-[#ddf7ff]/70 shadow-sm sm:max-w-4"
@@ -1570,7 +1570,7 @@ function CameraPanel({ face }) {
               : "Camera not started";
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
+    <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={Camera}>Expression signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
@@ -1723,7 +1723,7 @@ function PhysiologyPanel({ physiology }) {
     ? `${Math.round(summary.physiology_arousal * 100)}%`
     : "Face only";
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
+    <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={HeartPulse}>Physiology signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
@@ -2459,12 +2459,10 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#020712] text-white">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(160deg,#020712_0%,#071827_46%,#11122b_70%,#2a160d_100%)]" />
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-56 bg-[linear-gradient(180deg,rgba(45,212,191,0.16),rgba(2,7,18,0))]" />
+    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(160deg,#020712_0%,#071827_48%,#101329_74%,#20140f_100%)] text-white">
 
       <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-4 lg:px-8 lg:py-7">
-        <header className="flex flex-col gap-4 rounded-lg border border-white/10 bg-[#071827]/82 px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-5 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-4 rounded-lg border border-white/10 bg-[#071827] px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:px-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#32e6c8] text-[#020712] shadow-[0_0_38px_rgba(50,230,200,0.24)]">
               <Waves className="size-5" />
@@ -2525,11 +2523,11 @@ export default function App() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,7,18,0.18),rgba(2,7,18,0.84))]" />
                 <div className="relative flex min-h-[250px] flex-col justify-between gap-4 sm:min-h-[320px] sm:gap-5 md:min-h-[340px] lg:min-h-[430px]">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm backdrop-blur sm:text-[11px]">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm sm:text-[11px]">
                       <Headphones className="size-4" />
                       Participant session
                     </span>
-                    <span className="rounded-full border border-white/14 bg-[#020712]/34 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 backdrop-blur sm:text-[11px]">
+                    <span className="rounded-full border border-white/14 bg-[#020712]/34 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 sm:text-[11px]">
                       Trial {completedTrials + 1}/{totalTrials}
                     </span>
                   </div>
@@ -2647,7 +2645,7 @@ export default function App() {
           </section>
 
           <aside className="grid gap-4 self-start sm:gap-5">
-            <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
+            <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
               <div className="mb-4">
                 <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
