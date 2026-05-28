@@ -117,6 +117,8 @@ const EMOTION_QUADRANTS = {
 };
 
 const FALLBACK_PALETTE = ["#f8fafc", "#dbeafe", "#0f766e"];
+const MAIN_PANEL_CLASS =
+  "h-[430px] overflow-hidden rounded-lg border border-white/10 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:h-[460px] xl:h-[clamp(440px,calc((100dvh-210px)/2),560px)]";
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
@@ -1465,11 +1467,11 @@ function MoodMap({ mood }) {
     "pointer-events-none absolute text-[9px] font-bold uppercase tracking-[0.12em] text-white/58 sm:text-[10px]";
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-3 sm:p-4">
+    <div className="w-full rounded-lg border border-white/10 bg-white/5 p-3 sm:p-4">
       <div className={`${axisLabelClass} mb-2 text-center`}>High arousal</div>
       <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 sm:grid-cols-[3.35rem_minmax(0,1fr)_3.35rem]">
         <div className={`${axisLabelClass} text-right leading-4`}>Low valence</div>
-        <div className="relative aspect-square overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner sm:aspect-[4/3]">
+        <div className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner sm:max-w-[230px]">
           <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
             <div className="border-b border-r border-white/12 bg-[linear-gradient(135deg,rgba(249,115,22,0.17),rgba(129,140,248,0.08))]" />
             <div className="border-b border-white/12 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),rgba(50,230,200,0.20))]" />
@@ -1589,17 +1591,17 @@ function CameraPanel({ face }) {
               : "Camera not started";
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
+    <section className={`${MAIN_PANEL_CLASS} flex flex-col bg-[#071827] p-4 sm:p-5`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={Camera}>Expression signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
           {statusLabel}
         </span>
       </div>
-      <div className="overflow-hidden rounded-lg bg-slate-950 shadow-inner">
+      <div className="min-h-[180px] flex-1 overflow-hidden rounded-lg bg-slate-950 shadow-inner">
         <video
           aria-label="Local camera preview"
-          className="aspect-video w-full scale-x-[-1] object-cover opacity-90"
+          className="h-full w-full scale-x-[-1] object-cover opacity-90"
           muted
           playsInline
           ref={face.videoRef}
@@ -1742,33 +1744,33 @@ function PhysiologyPanel({ physiology }) {
     ? `${Math.round(summary.physiology_arousal * 100)}%`
     : "Face only";
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
+    <section className={`${MAIN_PANEL_CLASS} bg-[#071827] p-4 sm:p-5`}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={HeartPulse}>Physiology signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
           {statusLabel}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:gap-3">
-        <div className="rounded-lg bg-white/7 p-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
             HR
           </div>
-          <div className="mt-1 text-lg font-semibold text-white">
+          <div className="mt-1 text-base font-semibold text-white sm:text-lg">
             {summary.hr_bpm_mean ? `${Math.round(summary.hr_bpm_mean)} bpm` : "-"}
           </div>
         </div>
-        <div className="rounded-lg bg-white/7 p-3">
+        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
             RMSSD
           </div>
-          <div className="mt-1 text-lg font-semibold text-white">{rmssdLabel}</div>
+          <div className="mt-1 text-base font-semibold text-white sm:text-lg">{rmssdLabel}</div>
         </div>
-        <div className="rounded-lg bg-white/7 p-3">
+        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
             Arousal
           </div>
-          <div className="mt-1 text-lg font-semibold text-white">{arousalLabel}</div>
+          <div className="mt-1 text-base font-semibold text-white sm:text-lg">{arousalLabel}</div>
         </div>
       </div>
       <HeartRateCurve physiology={physiology} summary={summary} />
@@ -2529,10 +2531,10 @@ export default function App() {
           </section>
         ) : null}
 
-        <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="self-start overflow-hidden rounded-lg border border-white/10 bg-[#020712] text-white shadow-[0_34px_120px_rgba(0,0,0,0.46)]">
-            <div className="grid lg:grid-cols-[minmax(240px,320px)_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]">
-              <div className="relative order-2 p-4 sm:p-5 lg:order-1 lg:p-5 xl:p-6">
+        <section className="grid gap-4 sm:gap-5 xl:grid-cols-2 xl:items-stretch">
+          <section className={`${MAIN_PANEL_CLASS} bg-[#020712] text-white`}>
+            <div className="grid h-full min-h-0 grid-cols-[minmax(118px,38%)_minmax(0,1fr)] sm:grid-cols-[minmax(170px,36%)_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
+              <div className="relative min-h-0 p-3 sm:p-5 xl:p-5">
                 <div
                   className="absolute inset-0 opacity-80"
                   style={{
@@ -2540,7 +2542,7 @@ export default function App() {
                   }}
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,7,18,0.18),rgba(2,7,18,0.84))]" />
-                <div className="relative flex min-h-[250px] flex-col justify-between gap-4 sm:min-h-[320px] sm:gap-5 md:min-h-[340px] lg:min-h-[430px]">
+                <div className="relative flex h-full min-h-0 flex-col justify-between gap-4 sm:gap-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm sm:text-[11px]">
                       <Headphones className="size-4" />
@@ -2557,11 +2559,11 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="order-1 flex flex-col gap-5 bg-[#071827] p-4 text-white sm:gap-6 sm:p-6 lg:order-2 xl:p-8">
+              <div className="flex min-h-0 flex-col gap-4 overflow-y-auto bg-[#071827] p-4 text-white sm:p-6 xl:p-6">
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <SectionLabel icon={Music2}>Now playing</SectionLabel>
-                    <h2 className="mt-4 max-w-2xl break-words text-3xl font-semibold leading-[1.02] tracking-tight text-white sm:mt-5 sm:text-5xl 2xl:text-5xl">
+                    <h2 className="mt-4 max-w-2xl break-words text-2xl font-semibold leading-[1.02] tracking-tight text-white sm:mt-5 sm:text-4xl">
                       {currentSong.title}
                     </h2>
                     <p className="mt-2 text-lg text-[#c7d7e6] sm:mt-3 sm:text-xl">{currentSong.artist}</p>
@@ -2663,31 +2665,31 @@ export default function App() {
             </div>
           </section>
 
-          <aside className="grid gap-4 self-start sm:gap-5">
-            <section className="rounded-lg border border-white/10 bg-[#071827] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:p-5">
-              <div className="mb-4">
-                <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                    {mood.label}
-                  </h2>
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
-                    <span
-                      className="size-2 rounded-full shadow-[0_0_18px_currentColor]"
-                      style={{ background: mood.accent, color: mood.accent }}
-                    />
-                    {mood.tag.replace("_", " ")}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-[#9db0c4]">{mood.description}</p>
+          <section className={`${MAIN_PANEL_CLASS} flex flex-col bg-[#071827] p-4 sm:p-5`}>
+            <div className="mb-4">
+              <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                  {mood.label}
+                </h2>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
+                  <span
+                    className="size-2 rounded-full shadow-[0_0_18px_currentColor]"
+                    style={{ background: mood.accent, color: mood.accent }}
+                  />
+                  {mood.tag.replace("_", " ")}
+                </span>
               </div>
+              <p className="mt-2 text-sm text-[#9db0c4]">{mood.description}</p>
+            </div>
 
+            <div className="flex min-h-0 flex-1 items-center">
               <MoodMap mood={mood} />
-            </section>
+            </div>
+          </section>
 
-            <CameraPanel face={face} />
-            <PhysiologyPanel physiology={physiology} />
-          </aside>
+          <CameraPanel face={face} />
+          <PhysiologyPanel physiology={physiology} />
         </section>
 
         {protocolComplete ? (
