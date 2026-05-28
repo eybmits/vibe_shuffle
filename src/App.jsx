@@ -312,13 +312,13 @@ function buildHeartRateCurve(samples, width = 320, height = 112) {
   };
 }
 
-function ProgressRing({ value, label }) {
+function ProgressRing({ className = "", value, label }) {
   const radius = 46;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - clamp(value, 0, 100) / 100);
 
   return (
-    <div className="relative size-28">
+    <div className={`relative size-28 ${className}`}>
       <svg aria-hidden="true" className="size-full -rotate-90" viewBox="0 0 112 112">
         <circle cx="56" cy="56" fill="none" r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth="9" />
         <circle
@@ -1494,7 +1494,7 @@ function MoodMap({ mood }) {
 
 function CoverArt({ isPlaying, song }) {
   const coverClass =
-    "relative mx-auto aspect-square w-full max-w-[260px] overflow-hidden rounded-lg border border-white/14 shadow-[0_34px_90px_rgba(0,0,0,0.45)] sm:max-w-[320px] xl:max-w-[360px]";
+    "relative mx-auto aspect-square w-full max-w-[min(68vw,230px)] overflow-hidden rounded-lg border border-white/14 shadow-[0_34px_90px_rgba(0,0,0,0.45)] sm:max-w-[300px] md:max-w-[320px] xl:max-w-[360px]";
 
   if (song.albumImageUrl) {
     return (
@@ -1539,10 +1539,10 @@ function SessionWaveform({ isPlaying, song }) {
   const heights = [34, 62, 44, 86, 54, 104, 66, 48, 78, 52, 96, 42, 70, 58, 88, 46];
 
   return (
-    <div className="flex h-20 items-end justify-center gap-2 rounded-lg border border-white/12 bg-white/6 px-5 py-4 backdrop-blur sm:h-28">
+    <div className="flex h-16 items-end justify-center gap-1.5 rounded-lg border border-white/12 bg-white/6 px-3 py-3 backdrop-blur sm:h-24 sm:gap-2 sm:px-5 sm:py-4 lg:h-28">
       {heights.map((height, index) => (
         <span
-          className="w-full max-w-4 rounded-full bg-[#ddf7ff]/70 shadow-sm"
+          className="w-full max-w-3 rounded-full bg-[#ddf7ff]/70 shadow-sm sm:max-w-4"
           key={`${song.id}-session-${height}-${index}`}
           style={{
             animation: isPlaying
@@ -1572,8 +1572,8 @@ function CameraPanel({ face }) {
               : "Camera not started";
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={Camera}>Expression signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
           {statusLabel}
@@ -1588,7 +1588,7 @@ function CameraPanel({ face }) {
           ref={face.videoRef}
         />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
         <div className="rounded-lg bg-white/7 p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
             Expression
@@ -1619,7 +1619,7 @@ function HeartRateCurve({ physiology, summary }) {
   const lastPoint = curve.points.at(-1);
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-[linear-gradient(135deg,#082033_0%,#071827_60%,#201426_100%)] p-4">
+    <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-[linear-gradient(135deg,#082033_0%,#071827_60%,#201426_100%)] p-3 sm:p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#32e6c8]">
@@ -1633,7 +1633,7 @@ function HeartRateCurve({ physiology, summary }) {
           {latestLabel}
         </div>
       </div>
-      <div className="relative h-32">
+      <div className="relative h-28 sm:h-32">
         <svg
           aria-hidden="true"
           className="h-full w-full overflow-visible"
@@ -1747,14 +1747,14 @@ function PhysiologyPanel({ physiology }) {
           : "no data";
 
   return (
-    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionLabel icon={HeartPulse}>Physiology signal</SectionLabel>
         <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
           {statusLabel}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:gap-3">
         <div className="rounded-lg bg-white/7 p-3">
           <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
             HR
@@ -1845,22 +1845,22 @@ function IntroModal({
             : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/86 px-4 py-6 backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/86 px-3 py-4 backdrop-blur-xl sm:px-4 sm:py-6">
       <section
         aria-modal="true"
-        className="w-full max-w-5xl overflow-hidden rounded-lg border border-white/10 bg-[#071827] shadow-[0_34px_120px_rgba(0,0,0,0.55)]"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-5xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] shadow-[0_34px_120px_rgba(0,0,0,0.55)]"
         role="dialog"
       >
         <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="relative overflow-hidden bg-[#020712] p-6 text-white sm:p-8">
+          <div className="relative overflow-hidden bg-[#020712] p-5 text-white sm:p-8">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(49,46,129,0.70),rgba(7,24,39,0.82)_48%,rgba(249,115,22,0.48))]" />
-            <div className="relative flex min-h-[360px] flex-col gap-7 sm:min-h-[390px] lg:min-h-full">
+            <div className="relative flex min-h-[300px] flex-col gap-5 sm:min-h-[390px] sm:gap-7 lg:min-h-full">
               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm backdrop-blur">
                 <Radio className="size-4" />
                 Guided adaptive session
               </div>
               <div className="max-w-[460px]">
-                <h2 className="text-4xl font-semibold leading-[1.02] tracking-tight sm:text-5xl xl:text-6xl">
+                <h2 className="text-3xl font-semibold leading-[1.04] tracking-tight sm:text-5xl xl:text-6xl">
                   Music made for your current state.
                 </h2>
                 <p className="mt-4 max-w-sm text-sm leading-6 text-white/72">
@@ -1868,7 +1868,7 @@ function IntroModal({
                   appears before the next listening window.
                 </p>
               </div>
-              <div className="mt-auto flex h-24 items-end gap-3 opacity-85" aria-hidden="true">
+              <div className="mt-auto flex h-16 items-end gap-2 opacity-85 sm:h-24 sm:gap-3" aria-hidden="true">
                 {[48, 82, 56, 106, 64, 92, 50, 76, 112, 62, 88, 54].map((height, index) => (
                   <span
                     className="w-full rounded-full bg-white/70"
@@ -1886,7 +1886,7 @@ function IntroModal({
           <div className="p-5 sm:p-8">
             <div className="max-w-xl">
               <SectionLabel icon={Headphones}>Vibe Shuffle</SectionLabel>
-              <h2 className="mt-4 text-4xl font-semibold tracking-tight text-white">
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                 Your adaptive music session is ready.
               </h2>
               <p className="mt-3 text-sm leading-6 text-[#9db0c4]">
@@ -1897,7 +1897,7 @@ function IntroModal({
 
             <div className="mt-6 grid gap-3">
               <SetupStep complete={cameraReady} icon={Camera} title="Camera signal">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
                   <span>
                     {cameraReady
                       ? "Expression detection is ready."
@@ -1905,7 +1905,7 @@ function IntroModal({
                   </span>
                   {!cameraReady ? (
                     <button
-                      className="rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
+                      className="w-fit shrink-0 rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
                       onClick={onStartCamera}
                       type="button"
                     >
@@ -1947,7 +1947,7 @@ function IntroModal({
               </SetupStep>
               {catalogRequiresSpotify ? (
                 <SetupStep complete={spotifyReady} icon={Lock} title="Spotify playback">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
                     <span>
                       {spotifyPlayer.ready
                         ? "Spotify playback device is connected."
@@ -1955,7 +1955,7 @@ function IntroModal({
                     </span>
                     {!spotifyAuth.authenticated ? (
                       <button
-                        className="rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
+                        className="w-fit shrink-0 rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
                         onClick={onConnectSpotify}
                         type="button"
                       >
@@ -1969,7 +1969,7 @@ function IntroModal({
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <button
-                className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-6 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45"
+                className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-6 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45 sm:w-auto"
                 disabled={!setupReady}
                 onClick={onStart}
                 type="button"
@@ -1992,14 +1992,14 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#020712]/72 px-4 py-6 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/72 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-6">
       <section
         aria-modal="true"
-        className="w-full max-w-2xl rounded-lg border border-white/10 bg-[#071827] p-6 shadow-[0_32px_110px_rgba(0,0,0,0.48)] sm:p-7"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] p-5 shadow-[0_32px_110px_rgba(0,0,0,0.48)] sm:p-7"
         role="dialog"
       >
         <SectionLabel icon={BarChart3}>Rating required</SectionLabel>
-        <h2 className="mt-4 text-4xl font-semibold tracking-tight text-white">
+        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           How well did this track fit your mood?
         </h2>
         <p className="mt-2 text-sm text-[#9db0c4]">
@@ -2007,13 +2007,13 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
           Select one rating to continue.
         </p>
 
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:grid-cols-4 sm:gap-3">
           {RATING_OPTIONS.map((option) => {
             const active = currentRating?.rating_1_to_4 === option.score;
 
             return (
               <button
-                className={`min-h-32 rounded-lg border px-3 py-4 text-left transition ${
+                className={`min-h-28 rounded-lg border px-3 py-3 text-left transition sm:min-h-32 sm:py-4 ${
                   active
                     ? "border-[#32e6c8] bg-[#32e6c8] text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)]"
                     : "border-white/10 bg-white/7 text-[#c7d7e6] hover:border-[#32e6c8]/50 hover:bg-white/10"
@@ -2488,12 +2488,12 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#020712] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#020712] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(160deg,#020712_0%,#071827_46%,#11122b_70%,#2a160d_100%)]" />
       <div className="pointer-events-none fixed inset-x-0 top-0 h-56 bg-[linear-gradient(180deg,rgba(45,212,191,0.16),rgba(2,7,18,0))]" />
 
-      <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8 lg:py-7">
-        <header className="flex flex-col gap-4 rounded-lg border border-white/10 bg-[#071827]/82 px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+      <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-3 py-3 sm:gap-6 sm:px-6 sm:py-4 lg:px-8 lg:py-7">
+        <header className="flex flex-col gap-4 rounded-lg border border-white/10 bg-[#071827]/82 px-4 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[#32e6c8] text-[#020712] shadow-[0_0_38px_rgba(50,230,200,0.24)]">
               <Waves className="size-5" />
@@ -2503,7 +2503,7 @@ export default function App() {
               <p className="text-sm text-[#8ca3b8]">Music that adapts to your emotional state.</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
             <span className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
               {completedTrials}/{totalTrials} rated
             </span>
@@ -2541,10 +2541,10 @@ export default function App() {
           </section>
         ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="grid gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <section className="self-start overflow-hidden rounded-lg border border-white/10 bg-[#020712] text-white shadow-[0_34px_120px_rgba(0,0,0,0.46)]">
             <div className="grid lg:grid-cols-[minmax(300px,0.86fr)_minmax(0,1.14fr)]">
-              <div className="relative p-5 sm:p-7">
+              <div className="relative order-2 p-4 sm:p-6 lg:order-1 lg:p-7">
                 <div
                   className="absolute inset-0 opacity-80"
                   style={{
@@ -2552,13 +2552,13 @@ export default function App() {
                   }}
                 />
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,7,18,0.18),rgba(2,7,18,0.84))]" />
-                <div className="relative flex min-h-[330px] flex-col justify-between gap-6 sm:min-h-[410px] sm:gap-8 lg:min-h-[500px]">
+                <div className="relative flex min-h-[280px] flex-col justify-between gap-5 sm:min-h-[360px] sm:gap-7 md:min-h-[410px] lg:min-h-[500px] lg:gap-8">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm backdrop-blur">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white shadow-sm backdrop-blur sm:px-4 sm:text-xs">
                       <Headphones className="size-4" />
                       Participant session
                     </span>
-                    <span className="rounded-full border border-white/14 bg-[#020712]/34 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-white/90 backdrop-blur">
+                    <span className="rounded-full border border-white/14 bg-[#020712]/34 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/90 backdrop-blur sm:px-4 sm:text-xs">
                       Trial {completedTrials + 1}/{totalTrials}
                     </span>
                   </div>
@@ -2569,18 +2569,18 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-7 bg-[#071827] p-5 text-white sm:p-7 xl:p-9">
+              <div className="order-1 flex flex-col gap-5 bg-[#071827] p-4 text-white sm:gap-7 sm:p-7 lg:order-2 xl:p-9">
                 <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <SectionLabel icon={Music2}>Now playing</SectionLabel>
-                    <h2 className="mt-5 max-w-2xl break-words text-4xl font-semibold leading-[0.98] tracking-tight text-white sm:text-5xl 2xl:text-6xl">
+                    <h2 className="mt-4 max-w-2xl break-words text-3xl font-semibold leading-[1.02] tracking-tight text-white sm:mt-5 sm:text-5xl 2xl:text-6xl">
                       {currentSong.title}
                     </h2>
-                    <p className="mt-3 text-xl text-[#c7d7e6]">{currentSong.artist}</p>
+                    <p className="mt-2 text-lg text-[#c7d7e6] sm:mt-3 sm:text-xl">{currentSong.artist}</p>
                     {currentSong.album ? (
                       <p className="mt-1 text-sm font-medium text-[#8ca3b8]">{currentSong.album}</p>
                     ) : null}
-                    <div className="mt-5 flex flex-wrap gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
                       {SESSION_MODES.map((modeLabel) => (
                         <span
                           className="rounded-full border border-white/10 bg-white/7 px-3 py-1.5 text-xs font-semibold text-[#c7d7e6]"
@@ -2591,14 +2591,14 @@ export default function App() {
                       ))}
                     </div>
                   </div>
-                  <ProgressRing label="rated" value={progressPercent} />
+                  <ProgressRing className="hidden sm:block" label="rated" value={progressPercent} />
                 </div>
 
                 <div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <button
                       aria-label={isPlaying ? "Pause music" : "Start music"}
-                      className="inline-flex h-16 items-center justify-center gap-3 rounded-full bg-[#32e6c8] px-8 text-base font-semibold text-[#020712] shadow-[0_22px_56px_rgba(0,0,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45"
+                      className="inline-flex h-14 w-full items-center justify-center gap-3 rounded-full bg-[#32e6c8] px-6 text-base font-semibold text-[#020712] shadow-[0_22px_56px_rgba(0,0,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45 sm:h-16 sm:w-auto sm:px-8"
                       disabled={!sessionStarted || protocolComplete || ratingPromptOpen}
                       onClick={togglePlayback}
                       type="button"
@@ -2628,7 +2628,7 @@ export default function App() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-2 min-[520px]:grid-cols-3 sm:gap-3">
                   <div className="rounded-lg bg-white/7 px-4 py-3">
                     <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8ca3b8]">
                       <Clock3 className="size-3.5 text-[#32e6c8]" />
@@ -2675,13 +2675,13 @@ export default function App() {
             </div>
           </section>
 
-          <aside className="grid gap-5 self-start">
-            <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur">
+          <aside className="grid gap-4 self-start sm:gap-5">
+            <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
-                  <div className="mt-2 flex items-center gap-3">
-                    <h2 className="text-3xl font-semibold tracking-tight text-white">
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
                       {mood.label}
                     </h2>
                     <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
