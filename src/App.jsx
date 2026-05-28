@@ -1457,37 +1457,35 @@ function SectionLabel({ children, icon: Icon }) {
 }
 
 function MoodMap({ mood }) {
-  const x = clamp(mood.valence * 100, 8, 92);
-  const y = clamp(100 - mood.energy * 100, 8, 92);
+  const x = clamp(mood.valence * 100, 7, 93);
+  const y = clamp(100 - mood.energy * 100, 7, 93);
+  const axisLabelClass =
+    "text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9db0c4]";
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-white/10 bg-[#071827]">
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,113,113,0.18),rgba(45,212,191,0.18)),linear-gradient(0deg,rgba(59,130,246,0.10),rgba(251,146,60,0.18))]" />
-      <div className="absolute inset-6 rounded-lg border border-white/14 shadow-inner" />
-      <div className="absolute left-6 right-6 top-1/2 h-px bg-white/18" />
-      <div className="absolute bottom-6 top-6 left-1/2 w-px bg-white/18" />
-      <div
-        className="absolute size-6 rounded-full border-[4px] border-[#071827] shadow-[0_0_34px_currentColor] transition-all duration-500"
-        style={{
-          background: mood.accent,
-          color: mood.accent,
-          left: `${x}%`,
-          top: `${y}%`,
-          transform: "translate(-50%, -50%)",
-        }}
-      />
-      <span className="absolute left-1/2 top-3 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9db0c4]">
-        High arousal
-      </span>
-      <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9db0c4]">
-        Low arousal
-      </span>
-      <span className="absolute left-2 top-1/2 -translate-y-1/2 -rotate-90 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9db0c4]">
-        Low valence
-      </span>
-      <span className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9db0c4]">
-        High valence
-      </span>
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+      <div className={`${axisLabelClass} mb-2 text-center`}>High arousal</div>
+      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_3.25rem] items-center gap-2">
+        <div className={`${axisLabelClass} text-right leading-4`}>Low valence</div>
+        <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner">
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,113,113,0.20),rgba(45,212,191,0.20)),linear-gradient(0deg,rgba(59,130,246,0.12),rgba(251,146,60,0.18))]" />
+          <div className="absolute inset-4 rounded-md border border-white/12" />
+          <div className="absolute left-4 right-4 top-1/2 h-px bg-white/18" />
+          <div className="absolute bottom-4 top-4 left-1/2 w-px bg-white/18" />
+          <div
+            className="absolute size-5 rounded-full border-[4px] border-[#071827] shadow-[0_0_28px_currentColor] transition-all duration-500"
+            style={{
+              background: mood.accent,
+              color: mood.accent,
+              left: `${x}%`,
+              top: `${y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        </div>
+        <div className={`${axisLabelClass} leading-4`}>High valence</div>
+      </div>
+      <div className={`${axisLabelClass} mt-2 text-center`}>Low arousal</div>
     </div>
   );
 }
@@ -2650,23 +2648,21 @@ export default function App() {
 
           <aside className="grid gap-4 self-start sm:gap-5">
             <section className="rounded-lg border border-white/10 bg-[#071827]/92 p-4 shadow-[0_22px_70px_rgba(0,0,0,0.28)] backdrop-blur sm:p-5">
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
-                  <div className="mt-2 flex flex-wrap items-center gap-3">
-                    <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                      {mood.label}
-                    </h2>
-                    <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
-                      {mood.tag.replace("_", " ")}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-[#9db0c4]">{mood.description}</p>
+              <div className="mb-4">
+                <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                    {mood.label}
+                  </h2>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
+                    <span
+                      className="size-2 rounded-full shadow-[0_0_18px_currentColor]"
+                      style={{ background: mood.accent, color: mood.accent }}
+                    />
+                    {mood.tag.replace("_", " ")}
+                  </span>
                 </div>
-                <span
-                  className="mt-2 size-4 rounded-full shadow-[0_0_24px_currentColor]"
-                  style={{ background: mood.accent, color: mood.accent }}
-                />
+                <p className="mt-2 text-sm text-[#9db0c4]">{mood.description}</p>
               </div>
 
               <MoodMap mood={mood} />
