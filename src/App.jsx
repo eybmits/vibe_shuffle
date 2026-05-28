@@ -1854,31 +1854,31 @@ function IntroModal({
         <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
           <div className="relative min-h-[430px] overflow-hidden bg-[#020712] p-6 text-white sm:p-8">
             <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(49,46,129,0.70),rgba(7,24,39,0.82)_48%,rgba(249,115,22,0.48))]" />
-            <div className="absolute inset-x-8 bottom-10 top-24 flex items-end gap-3 opacity-85">
-              {[48, 82, 56, 106, 64, 92, 50, 76, 112, 62, 88, 54].map((height, index) => (
-                <span
-                  className="w-full rounded-full bg-white/70"
-                  key={`${height}-${index}`}
-                  style={{
-                    animation: `soft-pulse ${2 + index * 0.09}s ease-in-out infinite`,
-                    height: `${height}px`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="relative flex h-full min-h-[370px] flex-col justify-between">
+            <div className="relative flex h-full min-h-[370px] flex-col gap-7">
               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm backdrop-blur">
                 <Radio className="size-4" />
                 Guided adaptive session
               </div>
-              <div>
-                <h2 className="max-w-sm text-4xl font-semibold tracking-tight sm:text-6xl">
+              <div className="max-w-[460px]">
+                <h2 className="text-4xl font-semibold leading-[1.02] tracking-tight sm:text-5xl xl:text-6xl">
                   Music made for your current state.
                 </h2>
                 <p className="mt-4 max-w-sm text-sm leading-6 text-white/72">
                   Music starts only after you press play. After each track, one short rating
                   appears before the next listening window.
                 </p>
+              </div>
+              <div className="mt-auto flex h-24 items-end gap-3 opacity-85" aria-hidden="true">
+                {[48, 82, 56, 106, 64, 92, 50, 76, 112, 62, 88, 54].map((height, index) => (
+                  <span
+                    className="w-full rounded-full bg-white/70"
+                    key={`${height}-${index}`}
+                    style={{
+                      animation: `soft-pulse ${2 + index * 0.09}s ease-in-out infinite`,
+                      height: `${height}px`,
+                    }}
+                  />
+                ))}
               </div>
             </div>
           </div>
