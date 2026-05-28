@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   classifyExpressionScores,
   createExpressionBaseline,
+  createExpressionTrackerState,
   expressionStateFromTag,
   scoreExpressionFeatures,
   summarizeExpressionSamples,
+  updateExpressionTracker,
 } from "./expressionModel.js";
 
 const neutral = {
@@ -18,6 +20,8 @@ const neutral = {
   jawOpen: 0.01,
   mouthPress: 0.02,
   mouthPucker: 0.01,
+  mouthLowerDown: 0.01,
+  mouthRollLower: 0.01,
   mouthShrugLower: 0.01,
   mouthStretch: 0.01,
   smile: 0.02,
@@ -34,6 +38,36 @@ function classifySequence(scoreFrames, previousTag = "relaxed") {
   }
 
   return tag;
+}
+
+function categoriesFromFeatures(features) {
+  const pairs = {
+    browDownLeft: features.browDown,
+    browDownRight: features.browDown,
+    browInnerUp: features.browInnerUp,
+    cheekSquintLeft: features.cheekSquint,
+    cheekSquintRight: features.cheekSquint,
+    eyeSquintLeft: features.eyeSquint,
+    eyeSquintRight: features.eyeSquint,
+    eyeWideLeft: features.eyeWide,
+    eyeWideRight: features.eyeWide,
+    jawOpen: features.jawOpen,
+    mouthFrownLeft: features.frown,
+    mouthFrownRight: features.frown,
+    mouthLowerDownLeft: features.mouthLowerDown,
+    mouthLowerDownRight: features.mouthLowerDown,
+    mouthPressLeft: features.mouthPress,
+    mouthPressRight: features.mouthPress,
+    mouthPucker: features.mouthPucker,
+    mouthRollLower: features.mouthRollLower,
+    mouthShrugLower: features.mouthShrugLower,
+    mouthSmileLeft: features.smile,
+    mouthSmileRight: features.smile,
+    mouthStretchLeft: features.mouthStretch,
+    mouthStretchRight: features.mouthStretch,
+  };
+
+  return Object.entries(pairs).map(([categoryName, score]) => ({ categoryName, score }));
 }
 
 test("neutral baseline remains relaxed", () => {
@@ -70,6 +104,59 @@ test("sustained frown becomes sad_low", () => {
   const tag = classifySequence([scores, scores, scores, scores]);
 
   assert.equal(tag, "sad_low");
+});
+
+test("subtle sustained sad expression becomes sad_low", () => {
+  const scores = scoreExpressionFeatures(
+    {
+      ...neutral,
+      browInnerUp: 0.09,
+      frown: 0.09,
+      mouthPucker: 0.04,
+      mouthShrugLower: 0.07,
+      smile: 0.005,
+    },
+    neutral,
+  );
+  const tag = classifySequence([scores, scores, scores, scores]);
+
+  assert.equal(tag, "sad_low");
+  assert.ok(scores.sad_low >= 0.24);
+});
+
+test("raised inner brow without mouth cue stays relaxed", () => {
+  const scores = scoreExpressionFeatures(
+    { ...neutral, browInnerUp: 0.13, frown: 0.02, mouthShrugLower: 0.012, smile: 0.015 },
+    neutral,
+  );
+  const tag = classifySequence([scores, scores, scores, scores]);
+
+  assert.equal(tag, "relaxed");
+});
+
+test("tracker detects subtle sad expression after neutral baseline", () => {
+  let tracker = createExpressionTrackerState();
+
+  for (let index = 0; index < 30; index += 1) {
+    tracker = updateExpressionTracker(tracker, categoriesFromFeatures(neutral)).tracker;
+  }
+
+  const subtleSad = {
+    ...neutral,
+    browInnerUp: 0.09,
+    frown: 0.09,
+    mouthPucker: 0.04,
+    mouthShrugLower: 0.07,
+    smile: 0.005,
+  };
+  let expression = null;
+  for (let index = 0; index < 8; index += 1) {
+    const update = updateExpressionTracker(tracker, categoriesFromFeatures(subtleSad));
+    tracker = update.tracker;
+    expression = update.expression;
+  }
+
+  assert.equal(expression.tag, "sad_low");
 });
 
 test("brow and mouth tension without smile becomes tense", () => {
