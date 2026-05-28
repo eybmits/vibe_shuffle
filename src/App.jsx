@@ -4,9 +4,13 @@ import {
   BarChart3,
   Camera,
   CheckCircle2,
+  Clock3,
   Download,
+  Gauge,
+  Headphones,
   HeartPulse,
   Lock,
+  Music2,
   Pause,
   Play,
   Radio,
@@ -287,6 +291,50 @@ function formatSignedPoints(value) {
   if (!Number.isFinite(value)) return "-";
   const rounded = Math.round(value);
   return `${rounded > 0 ? "+" : ""}${rounded} pp`;
+}
+
+function ProgressRing({ value, label }) {
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamp(value, 0, 100) / 100);
+
+  return (
+    <div className="relative size-28">
+      <svg aria-hidden="true" className="size-full -rotate-90" viewBox="0 0 112 112">
+        <circle
+          cx="56"
+          cy="56"
+          fill="none"
+          r={radius}
+          stroke="rgba(226,232,240,0.86)"
+          strokeWidth="9"
+        />
+        <circle
+          cx="56"
+          cy="56"
+          fill="none"
+          r={radius}
+          stroke="url(#sessionProgressGradient)"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          strokeWidth="9"
+        />
+        <defs>
+          <linearGradient id="sessionProgressGradient" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#14b8a6" />
+            <stop offset="100%" stopColor="#f97316" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-xl font-semibold tracking-tight text-slate-950">{Math.round(value)}%</span>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          {label}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 function deterministicScore(id, seed) {
@@ -2356,35 +2404,39 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8fb] text-slate-900">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,#ffffff_0%,#f8fbff_38%,#eef8f4_68%,#fff8ed_100%)]" />
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-56 bg-[linear-gradient(180deg,rgba(20,184,166,0.12),rgba(255,255,255,0))]" />
+    <main className="min-h-screen bg-[#f6f8f5] text-slate-900">
+      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(135deg,#fbfdf9_0%,#f4fbf8_34%,#f7f8ff_66%,#fff7ed_100%)]" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_22%_10%,rgba(20,184,166,0.18),transparent_34%),radial-gradient(circle_at_78%_4%,rgba(249,115,22,0.13),transparent_32%)]" />
 
       <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-        <header className="rounded-lg border border-white/80 bg-white/75 p-5 shadow-sm backdrop-blur-xl">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">
-                <Radio className="size-3.5" />
-                Blinded validation protocol
-              </div>
-              <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                Vibe Shuffle
-              </h1>
-              <p className="mt-3 max-w-2xl text-base text-slate-600 sm:text-lg">
-                Music that adapts to your emotional state.
-              </p>
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 shadow-sm backdrop-blur">
+              <Radio className="size-3.5" />
+              Blinded validation protocol
             </div>
-            <div className="min-w-56 rounded-lg bg-slate-100 p-3">
-              <div className="flex items-center justify-between text-sm font-semibold text-slate-600">
-                <span>Session progress</span>
-                <span>{completedTrials}/{totalTrials}</span>
+            <h1 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
+              Vibe Shuffle
+            </h1>
+            <p className="mt-2 max-w-2xl text-base text-slate-600 sm:text-lg">
+              Music that adapts to your emotional state.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
+            <div className="rounded-lg border border-white/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Rated
               </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-teal-600 transition-all duration-500"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              <div className="mt-1 text-xl font-semibold text-slate-950">
+                {completedTrials}/{totalTrials}
+              </div>
+            </div>
+            <div className="rounded-lg border border-white/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                State
+              </div>
+              <div className="mt-1 text-xl font-semibold text-slate-950">
+                {ratingPromptOpen ? "Rate" : isPlaying ? "Listen" : "Ready"}
               </div>
             </div>
           </div>
@@ -2398,46 +2450,94 @@ export default function App() {
           </section>
         ) : null}
 
-        <section className="grid gap-5 lg:grid-cols-[1.42fr_0.78fr]">
-          <section className="overflow-hidden rounded-lg border border-white/80 bg-white p-5 shadow-[0_24px_80px_rgba(15,23,42,0.10)]">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <SectionLabel icon={Waves}>Listening</SectionLabel>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-                  Stay with the music
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  The rating prompt appears automatically when the listening window ends.
-                </p>
-              </div>
-              <div className="rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600">
-                Track {completedTrials + 1}/{totalTrials}
-              </div>
-            </div>
-
-            <div className="grid gap-7 lg:grid-cols-[minmax(240px,340px)_minmax(0,1fr)] lg:items-center">
-              <CoverArt isPlaying={isPlaying} song={currentSong} />
-
-              <div className="flex min-h-full flex-col justify-center gap-6">
-                <div>
-                  <div className="mb-4 inline-flex rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">
-                    Now playing
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1.36fr)_minmax(330px,0.64fr)]">
+          <section className="overflow-hidden rounded-lg border border-white/90 bg-white/88 shadow-[0_28px_100px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+            <div className="grid gap-0 lg:grid-cols-[minmax(260px,390px)_minmax(0,1fr)]">
+              <div className="relative bg-slate-950 p-5 text-white">
+                <div
+                  className="absolute inset-0 opacity-80"
+                  style={{
+                    background: `linear-gradient(135deg, ${currentSong.palette[0]} 0%, ${currentSong.palette[1]} 48%, ${currentSong.palette[2]} 100%)`,
+                  }}
+                />
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(15,23,42,0.10),rgba(15,23,42,0.72))]" />
+                <div className="relative flex h-full min-h-[420px] flex-col justify-between gap-5">
+                  <div className="flex items-center justify-between">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/82 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-900 shadow-sm">
+                      <Headphones className="size-3.5" />
+                      Participant player
+                    </div>
+                    <span className="rounded-full bg-slate-950/32 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white backdrop-blur">
+                      Trial {completedTrials + 1}/{totalTrials}
+                    </span>
                   </div>
-                  <h3 className="text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-                    {currentSong.title}
-                  </h3>
-                  <p className="mt-2 text-lg text-slate-500">{currentSong.artist}</p>
-                  {currentSong.album ? (
-                    <p className="mt-1 text-sm text-slate-400">{currentSong.album}</p>
-                  ) : null}
+                  <CoverArt isPlaying={isPlaying} song={currentSong} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg bg-white/82 px-3 py-3 text-slate-950 shadow-sm backdrop-blur">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
+                        Catalog
+                      </div>
+                      <div className="mt-1 text-sm font-semibold">{songs.length} tracks</div>
+                    </div>
+                    <div className="rounded-lg bg-white/82 px-3 py-3 text-slate-950 shadow-sm backdrop-blur">
+                      <div className="text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
+                        Protocol
+                      </div>
+                      <div className="mt-1 text-sm font-semibold">Blinded</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col justify-between gap-8 p-5 sm:p-7">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <SectionLabel icon={Music2}>Now playing</SectionLabel>
+                    <h2 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                      {currentSong.title}
+                    </h2>
+                    <p className="mt-3 text-xl text-slate-600">{currentSong.artist}</p>
+                    {currentSong.album ? (
+                      <p className="mt-1 text-sm font-medium text-slate-400">{currentSong.album}</p>
+                    ) : null}
+                  </div>
+                  <ProgressRing label="rated" value={progressPercent} />
                 </div>
 
-                <div className="rounded-lg bg-slate-50 p-5">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg bg-slate-50 px-4 py-3">
+                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
+                      <Clock3 className="size-3.5 text-teal-600" />
+                      Window
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">
+                      {ratingPromptOpen ? "Rate" : formatSeconds(remainingSeconds)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 px-4 py-3">
+                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
+                      <Gauge className="size-3.5 text-teal-600" />
+                      Mood
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">{mood.label}</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 px-4 py-3">
+                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-500">
+                      <BarChart3 className="size-3.5 text-teal-600" />
+                      Rated
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-950">
+                      {completedTrials}/{totalTrials}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <div className="mb-3 flex items-center justify-between text-sm font-semibold text-slate-500">
                     <span>Listening window</span>
-                    <span>{ratingPromptOpen ? "Ready to rate" : formatSeconds(remainingSeconds)}</span>
+                    <span>{ratingPromptOpen ? "Ready to rate" : `${Math.round(trackProgress)}%`}</span>
                   </div>
-                  <div className="mb-5 h-3 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-200">
                     <div
                       className="h-full rounded-full transition-all duration-700"
                       style={{
@@ -2446,10 +2546,13 @@ export default function App() {
                       }}
                     />
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <button
                       aria-label={isPlaying ? "Pause music" : "Start music"}
-                      className="inline-flex h-14 min-w-40 items-center justify-center gap-3 rounded-full bg-slate-950 px-5 text-sm font-semibold text-white shadow-lg transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-slate-300"
+                      className="inline-flex h-14 items-center justify-center gap-3 rounded-full bg-slate-950 px-6 text-sm font-semibold text-white shadow-[0_18px_45px_rgba(15,23,42,0.18)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:bg-slate-300"
                       disabled={!sessionStarted || protocolComplete || ratingPromptOpen}
                       onClick={togglePlayback}
                       type="button"
@@ -2457,9 +2560,14 @@ export default function App() {
                       {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
                       {isPlaying ? "Pause" : trackProgress > 0 ? "Resume" : "Start music"}
                     </button>
-                    <div className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-500 shadow-sm">
+                    <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm">
+                      <span
+                        className={`size-2 rounded-full ${
+                          isPlaying ? "animate-pulse bg-teal-500" : "bg-slate-300"
+                        }`}
+                      />
                       {ratingPromptOpen
-                        ? "Please rate this track"
+                        ? "Rating required"
                         : isPlaying
                           ? "Playing"
                           : sessionStarted
@@ -2477,7 +2585,7 @@ export default function App() {
             </div>
           </section>
 
-          <div className="grid gap-5">
+          <aside className="grid gap-5">
             <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
@@ -2503,7 +2611,7 @@ export default function App() {
 
             <CameraPanel face={face} />
             <PhysiologyPanel physiology={physiology} />
-          </div>
+          </aside>
         </section>
 
         {protocolComplete ? (
