@@ -1457,21 +1457,40 @@ function SectionLabel({ children, icon: Icon }) {
 }
 
 function MoodMap({ mood }) {
-  const x = clamp(mood.valence * 100, 7, 93);
-  const y = clamp(100 - mood.energy * 100, 7, 93);
+  const x = clamp(mood.valence * 100, 5, 95);
+  const y = clamp(100 - mood.energy * 100, 5, 95);
   const axisLabelClass =
-    "text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9db0c4]";
+    "text-[9px] font-semibold uppercase tracking-[0.13em] text-[#9db0c4] sm:text-[10px]";
+  const quadrantLabelClass =
+    "pointer-events-none absolute text-[9px] font-bold uppercase tracking-[0.12em] text-white/58 sm:text-[10px]";
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+    <div className="rounded-lg border border-white/10 bg-white/5 p-3 sm:p-4">
       <div className={`${axisLabelClass} mb-2 text-center`}>High arousal</div>
-      <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_3.25rem] items-center gap-2">
+      <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 sm:grid-cols-[3.35rem_minmax(0,1fr)_3.35rem]">
         <div className={`${axisLabelClass} text-right leading-4`}>Low valence</div>
-        <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner">
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(248,113,113,0.20),rgba(45,212,191,0.20)),linear-gradient(0deg,rgba(59,130,246,0.12),rgba(251,146,60,0.18))]" />
-          <div className="absolute inset-4 rounded-md border border-white/12" />
-          <div className="absolute left-4 right-4 top-1/2 h-px bg-white/18" />
-          <div className="absolute bottom-4 top-4 left-1/2 w-px bg-white/18" />
+        <div className="relative aspect-square overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner sm:aspect-[4/3]">
+          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+            <div className="border-b border-r border-white/12 bg-[linear-gradient(135deg,rgba(249,115,22,0.17),rgba(129,140,248,0.08))]" />
+            <div className="border-b border-white/12 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),rgba(50,230,200,0.20))]" />
+            <div className="border-r border-white/12 bg-[linear-gradient(135deg,rgba(129,140,248,0.16),rgba(248,113,113,0.08))]" />
+            <div className="bg-[linear-gradient(135deg,rgba(20,184,166,0.14),rgba(45,212,191,0.09))]" />
+          </div>
+          <div className="absolute inset-0 rounded-lg ring-1 ring-inset ring-white/10" />
+          <div className="absolute left-0 right-0 top-1/2 h-px bg-white/42" />
+          <div className="absolute bottom-0 top-0 left-1/2 w-px bg-white/42" />
+          <span className={`${quadrantLabelClass} left-3 top-3 text-[#fbbf24]/72`}>
+            Tense
+          </span>
+          <span className={`${quadrantLabelClass} right-3 top-3 text-[#32e6c8]/76`}>
+            Happy
+          </span>
+          <span className={`${quadrantLabelClass} bottom-3 left-3 text-[#a5b4fc]/76`}>
+            Sad low
+          </span>
+          <span className={`${quadrantLabelClass} bottom-3 right-3 text-[#7dd3fc]/76`}>
+            Relaxed
+          </span>
           <div
             className="absolute size-5 rounded-full border-[4px] border-[#071827] shadow-[0_0_28px_currentColor] transition-all duration-500"
             style={{
