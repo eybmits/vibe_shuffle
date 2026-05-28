@@ -6,6 +6,8 @@ export const SAD_MIN_SCORE = 0.24;
 export const TENSE_MIN_SCORE = 0.32;
 export const EXPRESSION_SWITCH_MARGIN = 0.1;
 export const MIN_SUSTAINED_SAMPLES = 3;
+export const SAD_FAST_SWITCH_SCORE = 0.42;
+export const SAD_FAST_SWITCH_SAMPLES = 2;
 
 export const EXPRESSION_TAGS = ["happy", "relaxed", "tense", "sad_low"];
 
@@ -130,17 +132,18 @@ export function scoreExpressionFeatures(features, baseline = {}) {
     (sadBrowCue >= 0.045 && sadMouthCue >= 0.022);
   const sadBase =
     frownDelta * 3.8 +
-    frown * 1.25 +
+    frown * 1.8 +
     browInnerUpDelta * 1.62 +
-    (features.browInnerUp ?? 0) * 0.22 +
+    (features.browInnerUp ?? 0) * 0.35 +
     mouthShrugLowerDelta * 1.35 +
-    (features.mouthShrugLower ?? 0) * 0.2 +
+    (features.mouthShrugLower ?? 0) * 0.35 +
     mouthPuckerDelta * 0.75 +
+    (features.mouthPucker ?? 0) * 0.35 +
     mouthPressDelta * 0.58 +
     mouthLowerDownDelta * 0.62 +
     mouthRollLowerDelta * 0.45 +
     browDownDelta * 0.28 +
-    lowSmile * 0.2 -
+    lowSmile * 0.22 -
     smile * 0.58 -
     (features.cheekSquint ?? 0) * 0.18;
   const sadLow = clamp(sadGate ? sadBase : sadBase * 0.25);
@@ -194,10 +197,26 @@ export function classifyExpressionScores(
       ? { tag: proposedTag, count: candidate.count + 1 }
       : { tag: proposedTag, count: 1 };
 
+  const requiredSamples =
+    proposedTag === "sad_low" && topScore >= SAD_FAST_SWITCH_SCORE
+      ? SAD_FAST_SWITCH_SAMPLES
+      : MIN_SUSTAINED_SAMPLES;
+
   return {
     candidate: nextCandidate,
-    tag: nextCandidate.count >= MIN_SUSTAINED_SAMPLES ? proposedTag : previousTag,
+    tag: nextCandidate.count >= requiredSamples ? proposedTag : previousTag,
   };
+}
+
+function dominantWindowTag(scores) {
+  const activeScores = [
+    ["happy", scores.happy >= HAPPY_MIN_SCORE ? scores.happy : 0],
+    ["tense", scores.tense >= TENSE_MIN_SCORE ? scores.tense : 0],
+    ["sad_low", scores.sad_low >= SAD_MIN_SCORE ? scores.sad_low : 0],
+  ].sort((a, b) => b[1] - a[1]);
+  const [topTag, topScore] = activeScores[0];
+
+  return topScore > 0 ? topTag : "relaxed";
 }
 
 export function expressionStateFromTag(tag, scores, facePresent = true) {
@@ -334,21 +353,24 @@ export function summarizeExpressionSamples(samples, fallbackExpression = null) {
       samples.reduce((total, sample) => total + (sample.scores?.[tag] ?? 0), 0) / samples.length,
     ]),
   );
-  const tag = EXPRESSION_TAGS.reduce((bestTag, tagName) =>
-    meanScores[tagName] > meanScores[bestTag] ? tagName : bestTag,
+  const tag = dominantWindowTag(meanScores);
+  const windowState = expressionStateFromTag(
+    tag,
+    meanScores,
+    samples.some((sample) => sample.facePresent),
   );
-  const confidence = meanScores[tag];
+  const confidence = windowState.confidence;
 
   return {
     confidence,
-    energy: samples.reduce((total, sample) => total + sample.energy, 0) / samples.length,
-    facePresent: samples.some((sample) => sample.facePresent),
+    energy: windowState.energy,
+    facePresent: windowState.facePresent,
     mean_happy: meanScores.happy,
     mean_relaxed: meanScores.relaxed,
     mean_tense: meanScores.tense,
     mean_sad_low: meanScores.sad_low,
     sampleCount: samples.length,
     tag,
-    valence: samples.reduce((total, sample) => total + sample.valence, 0) / samples.length,
+    valence: windowState.valence,
   };
 }

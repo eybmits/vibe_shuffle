@@ -106,6 +106,23 @@ test("sustained frown becomes sad_low", () => {
   assert.equal(tag, "sad_low");
 });
 
+test("strong sad expression switches faster than subtle expressions", () => {
+  const scores = scoreExpressionFeatures(
+    { ...neutral, browInnerUp: 0.18, frown: 0.42, mouthPress: 0.12, smile: 0.005 },
+    neutral,
+  );
+  let tag = "relaxed";
+  let candidate = { tag: "relaxed", count: 0 };
+
+  for (let index = 0; index < 2; index += 1) {
+    const result = classifyExpressionScores(scores, tag, candidate);
+    tag = result.tag;
+    candidate = result.candidate;
+  }
+
+  assert.equal(tag, "sad_low");
+});
+
 test("subtle sustained sad expression becomes sad_low", () => {
   const scores = scoreExpressionFeatures(
     {
@@ -159,6 +176,20 @@ test("tracker detects subtle sad expression after neutral baseline", () => {
   assert.equal(expression.tag, "sad_low");
 });
 
+test("sad expression can still exceed threshold when baseline is not perfectly neutral", () => {
+  const subtleSad = {
+    ...neutral,
+    browInnerUp: 0.09,
+    frown: 0.09,
+    mouthPucker: 0.04,
+    mouthShrugLower: 0.07,
+    smile: 0.005,
+  };
+  const scores = scoreExpressionFeatures(subtleSad, subtleSad);
+
+  assert.ok(scores.sad_low >= 0.24);
+});
+
 test("brow and mouth tension without smile becomes tense", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, browDown: 0.42, eyeWide: 0.13, jawOpen: 0.1, mouthPress: 0.34, smile: 0.01 },
@@ -190,6 +221,22 @@ test("window average beats last-second noise", () => {
 
   assert.equal(summary.tag, "happy");
   assert.ok(summary.mean_happy > summary.mean_sad_low);
+});
+
+test("window average uses sad evidence even when relaxed score stays numerically higher", () => {
+  const weakSadScores = {
+    happy: 0.02,
+    relaxed: 0.62,
+    tense: 0.03,
+    sad_low: 0.28,
+  };
+  const samples = Array.from({ length: 10 }, () =>
+    expressionStateFromTag("relaxed", weakSadScores),
+  );
+  const summary = summarizeExpressionSamples(samples);
+
+  assert.equal(summary.tag, "sad_low");
+  assert.ok(summary.valence < 0.5);
 });
 
 test("empty window falls back to relaxed when no camera samples exist", () => {
