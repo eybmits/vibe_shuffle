@@ -108,6 +108,25 @@ test("usable HRV arousal is not averaged with happy face arousal", () => {
   assert.equal(fused.tag, "relaxed");
 });
 
+test("HRV changes only the arousal axis and preserves face valence", () => {
+  const face = { confidence: 0.8, energy: 0.5, facePresent: true, tag: "happy", valence: 0.82 };
+  const lowArousal = fuseEmotionSignals(face, {
+    physiology_arousal: 0.22,
+    physiology_quality: "good",
+    rr_count: 40,
+  });
+  const highArousal = fuseEmotionSignals(face, {
+    physiology_arousal: 0.88,
+    physiology_quality: "good",
+    rr_count: 40,
+  });
+
+  assert.equal(lowArousal.valence, 0.82);
+  assert.equal(highArousal.valence, 0.82);
+  assert.equal(lowArousal.energy, 0.22);
+  assert.equal(highArousal.energy, 0.88);
+});
+
 test("neutral or happy face plus low arousal maps to relaxed", () => {
   const fused = fuseEmotionSignals(
     { confidence: 0.5, energy: 0.5, facePresent: true, tag: "happy", valence: 0.82 },
