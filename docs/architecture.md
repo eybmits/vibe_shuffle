@@ -80,7 +80,9 @@ stores only session-local baseline statistics. In Vibe Shuffle, ECG/HRV provides
 the Arousal coordinate when quality is good, while the face-expression window
 provides the Valence coordinate. Without good ECG/HRV, Arousal remains centered
 instead of being inferred from the face. This follows the project constraint
-that HR/HRV should not be treated as a standalone emotion classifier.
+that HR/HRV should not be treated as a standalone emotion classifier. The pilot
+Arousal formula uses equal weights for normalized HR rise, RMSSD drop, and SDNN
+drop.
 
 ## Playback Paths
 

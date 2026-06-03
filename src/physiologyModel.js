@@ -4,6 +4,7 @@ export const MIN_HRV_RR_COUNT = 20;
 export const VALID_RR_MIN_MS = 300;
 export const VALID_RR_MAX_MS = 2000;
 export const ECTOPIC_DELTA_RATIO = 0.3;
+export const PHYSIOLOGY_AROUSAL_WEIGHT = 0.15;
 
 const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -218,7 +219,10 @@ export function summarizePhysiologyMeasurements(
       : null;
   const physiologyArousal =
     quality === "good" && baseline
-      ? clamp(0.5 + (zHr ?? 0) * 0.16 + (zRmssd ?? 0) * 0.18 + (zSdnn ?? 0) * 0.12)
+      ? clamp(
+          0.5 +
+            ((zHr ?? 0) + (zRmssd ?? 0) + (zSdnn ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT,
+        )
       : null;
 
   return {

@@ -6,6 +6,7 @@ import {
   filterRrIntervals,
   fuseEmotionSignals,
   parseHeartRateMeasurement,
+  PHYSIOLOGY_AROUSAL_WEIGHT,
   summarizePhysiologyMeasurements,
 } from "./physiologyModel.js";
 
@@ -77,6 +78,25 @@ test("normalizes arousal against personal baseline", () => {
   assert.ok(summary.z_hr > 4);
   assert.ok(summary.z_rmssd > 4);
   assert.ok(summary.physiology_arousal > 0.85);
+});
+
+test("arousal uses equal HR RMSSD and SDNN weights", () => {
+  const baseline = {
+    hr_mad: 10,
+    median_hr_bpm: 70,
+    median_rmssd_ms: 30,
+    median_sdnn_ms: 20,
+    rmssd_mad: 10,
+    sdnn_mad: 10,
+  };
+  const rr = Array.from({ length: 40 }, (_, index) => (index % 2 ? 710 : 690));
+  const summary = summarizePhysiologyMeasurements(measurementsFromRr(rr, 80), baseline);
+  const expected =
+    0.5 +
+    (summary.z_hr + summary.z_rmssd + summary.z_sdnn) * PHYSIOLOGY_AROUSAL_WEIGHT;
+
+  approx(summary.z_hr, 1);
+  approx(summary.physiology_arousal, expected);
 });
 
 test("neutral face plus high HR and low HRV maps to tense", () => {

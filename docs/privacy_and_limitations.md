@@ -66,7 +66,9 @@ The physiology model uses personal baseline deviations. Higher HR with lower
 RMSSD/SDNN is treated as higher arousal, but HR/HRV is not used as a standalone
 emotion classifier. Recent Nature-family work supports physiology as useful for
 emotion recognition while also favoring multimodal signals, so this app uses
-face expression for Valence and ECG/HRV for Arousal.
+face expression for Valence and ECG/HRV for Arousal. HR, RMSSD, and SDNN use
+equal pilot weights in the Arousal formula; these are not validated clinical
+coefficients.
 
 Relevant references:
 
