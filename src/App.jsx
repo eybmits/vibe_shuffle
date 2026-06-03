@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import musicCatalog from "./data/musicCatalog.json";
 import {
-  FACE_BASELINE_FRAMES,
   FACE_SAMPLE_INTERVAL_MS,
   createExpressionTrackerState,
   initialExpressionScores,
@@ -1036,19 +1035,6 @@ function useFaceExpression() {
           const update = updateExpressionTracker(trackerRef.current, categories);
           trackerRef.current = update.tracker;
 
-          if (update.status === "calibrating") {
-            setState((current) => ({
-              ...expressionStateToMood(update.expression),
-              confidence: trackerRef.current.baseline.samples / FACE_BASELINE_FRAMES,
-              error: "",
-              sample: null,
-              sampleId: current.sampleId,
-              status: "calibrating",
-            }));
-            frameRef.current = window.requestAnimationFrame(detect);
-            return;
-          }
-
           sampleIdRef.current += 1;
           setState({
             ...expressionStateToMood(update.expression),
@@ -1584,11 +1570,9 @@ function CameraPanel({ face }) {
         ? "Looking for face"
         : face.status === "loading"
           ? "Starting camera"
-          : face.status === "calibrating"
-            ? "Calibrating"
-            : face.status === "error"
-              ? "Camera blocked"
-              : "Camera not started";
+          : face.status === "error"
+            ? "Camera blocked"
+            : "Camera not started";
 
   return (
     <section className={`${MAIN_PANEL_CLASS} flex flex-col bg-[#071827] p-4 sm:p-5 xl:p-4`}>
@@ -2106,7 +2090,7 @@ export default function App() {
   const remainingSeconds =
     LISTENING_WINDOW_SECONDS * (1 - Math.min(trackProgress, 100) / 100);
   const cameraReady =
-    face.status === "ready" || face.status === "searching" || face.status === "calibrating";
+    face.status === "ready" || face.status === "searching";
   const playbackReady = !catalogRequiresSpotify || spotifyPlayerReady;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
   const setupReady = playbackReady && physiologyReady;

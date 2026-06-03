@@ -10,6 +10,12 @@ blendshapes to estimate expression. This is not identity recognition and should
 not be presented as biometric identification, clinical affect diagnosis, or
 validated microexpression detection.
 
+The face model intentionally avoids a participant-specific neutral face
+baseline because head pose, gaze direction, camera distance, and lighting can
+make that baseline unstable. Instead, neutral/low-evidence faces default to
+`relaxed`, and only clear smile, frown/downturned-mouth, or facial-tension cues
+move the Valence/Arousal estimate away from that default.
+
 ## Exported Data
 
 The CSV stores derived experimental data:

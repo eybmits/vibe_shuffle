@@ -1,4 +1,3 @@
-export const FACE_BASELINE_FRAMES = 30;
 export const FACE_SAMPLE_INTERVAL_MS = 120;
 export const FACE_EMA_ALPHA = 0.34;
 export const HAPPY_MIN_SCORE = 0.24;
@@ -39,52 +38,6 @@ export function expressionFeatures(categories) {
   };
 }
 
-export function createExpressionBaseline() {
-  return {
-    samples: 0,
-    sums: {
-      browDown: 0,
-      browInnerUp: 0,
-      cheekSquint: 0,
-      eyeSquint: 0,
-      eyeWide: 0,
-      frown: 0,
-      jawOpen: 0,
-      mouthLowerDown: 0,
-      mouthPress: 0,
-      mouthPucker: 0,
-      mouthRollLower: 0,
-      mouthShrugLower: 0,
-      mouthStretch: 0,
-      smile: 0,
-    },
-  };
-}
-
-export function addBaselineSample(baseline, features) {
-  const nextBaseline = {
-    samples: baseline.samples + 1,
-    sums: { ...baseline.sums },
-  };
-
-  Object.keys(nextBaseline.sums).forEach((key) => {
-    nextBaseline.sums[key] += features[key] ?? 0;
-  });
-
-  return nextBaseline;
-}
-
-export function baselineMeans(baseline) {
-  const divisor = Math.max(1, baseline.samples);
-  return Object.fromEntries(
-    Object.entries(baseline.sums).map(([key, value]) => [key, value / divisor]),
-  );
-}
-
-function positiveDelta(features, baseline, key) {
-  return Math.max(0, (features[key] ?? 0) - (baseline[key] ?? 0));
-}
-
 export function initialExpressionScores() {
   return {
     happy: 0,
@@ -94,19 +47,14 @@ export function initialExpressionScores() {
   };
 }
 
-export function scoreExpressionFeatures(features, baseline = {}) {
-  const smileDelta = positiveDelta(features, baseline, "smile");
-  const frownDelta = positiveDelta(features, baseline, "frown");
-  const cheekDelta = positiveDelta(features, baseline, "cheekSquint");
-  const browDownDelta = positiveDelta(features, baseline, "browDown");
-  const browInnerUpDelta = positiveDelta(features, baseline, "browInnerUp");
-  const mouthLowerDownDelta = positiveDelta(features, baseline, "mouthLowerDown");
-  const mouthPressDelta = positiveDelta(features, baseline, "mouthPress");
-  const mouthPuckerDelta = positiveDelta(features, baseline, "mouthPucker");
-  const mouthRollLowerDelta = positiveDelta(features, baseline, "mouthRollLower");
-  const mouthShrugLowerDelta = positiveDelta(features, baseline, "mouthShrugLower");
-  const jawOpenDelta = positiveDelta(features, baseline, "jawOpen");
-  const mouthStretchDelta = positiveDelta(features, baseline, "mouthStretch");
+export function scoreExpressionFeatures(features) {
+  const browDown = features.browDown ?? 0;
+  const browInnerUp = features.browInnerUp ?? 0;
+  const cheekSquint = features.cheekSquint ?? 0;
+  const eyeWide = features.eyeWide ?? 0;
+  const jawOpen = features.jawOpen ?? 0;
+  const mouthPress = features.mouthPress ?? 0;
+  const mouthStretch = features.mouthStretch ?? 0;
   const smile = features.smile ?? 0;
   const frown = features.frown ?? 0;
   const mouthLowerDown = features.mouthLowerDown ?? 0;
@@ -116,66 +64,57 @@ export function scoreExpressionFeatures(features, baseline = {}) {
   const lowSmile = Math.max(0, 0.12 - smile);
 
   const happy = clamp(
-    smileDelta * 2.7 +
-      smile * 0.8 +
-      cheekDelta * 1.2 +
-      (features.cheekSquint ?? 0) * 0.32 -
-      frown * 0.35,
+    Math.max(0, smile - 0.08) * 2.55 +
+      cheekSquint * 0.75 +
+      Math.max(0, smile - frown) * 0.35 -
+      frown * 0.55 -
+      mouthLowerDown * 0.25,
   );
 
   const sadMouthCue = Math.max(
-    frownDelta,
-    mouthShrugLowerDelta * 0.82,
-    mouthPuckerDelta * 0.72,
-    mouthLowerDownDelta * 0.62,
-    mouthLowerDown * 0.58,
-    mouthRollLower * 0.52,
-    mouthPucker * 0.48,
-    mouthShrugLower * 0.42,
+    frown * 1.1,
+    mouthLowerDown * 1.35,
+    mouthRollLower * 1,
+    mouthPucker * 0.75,
+    mouthShrugLower * 0.75,
   );
-  const sadBrowCue = browInnerUpDelta + (features.browInnerUp ?? 0) * 0.22;
+  const sadSupport =
+    browInnerUp * 0.7 +
+    frown * 0.7 +
+    mouthLowerDown * 0.6 +
+    mouthRollLower * 0.4 +
+    mouthShrugLower * 0.4 +
+    mouthPucker * 0.25;
   const lowValenceMouthCue =
     lowSmile >= 0.08 &&
     (mouthLowerDown >= 0.035 || mouthRollLower >= 0.035 || mouthPucker >= 0.024) &&
-    (features.browInnerUp >= 0.025 ||
+    (browInnerUp >= 0.025 ||
       frown >= 0.02 ||
       mouthShrugLower >= 0.02 ||
       mouthPucker >= 0.02);
   const sadGate =
-    frown >= 0.055 ||
-    frownDelta >= 0.025 ||
-    lowValenceMouthCue ||
-    (lowSmile >= 0.085 && sadBrowCue >= 0.025 && sadMouthCue >= 0.024) ||
-    (sadBrowCue >= 0.045 && sadMouthCue >= 0.022);
+    smile <= 0.16 &&
+    (frown >= 0.055 ||
+      lowValenceMouthCue ||
+      (sadMouthCue >= 0.055 && sadSupport >= 0.045));
   const sadBase =
-    frownDelta * 3.8 +
-    frown * 1.8 +
-    browInnerUpDelta * 1.62 +
-    (features.browInnerUp ?? 0) * 0.35 +
-    mouthShrugLowerDelta * 1.35 +
-    mouthShrugLower * 0.35 +
-    mouthPuckerDelta * 0.75 +
-    mouthPucker * 0.44 +
-    mouthPressDelta * 0.58 +
-    mouthLowerDownDelta * 0.62 +
-    mouthLowerDown * 0.95 +
-    mouthRollLowerDelta * 0.45 +
-    mouthRollLower * 0.78 +
-    browDownDelta * 0.28 +
+    sadMouthCue * 2.4 +
+    browInnerUp * 0.35 +
+    mouthLowerDown * 0.9 +
+    mouthRollLower * 0.45 +
     lowSmile * 0.22 -
-    smile * 0.58 -
-    (features.cheekSquint ?? 0) * 0.18;
+    smile * 0.72 -
+    cheekSquint * 0.2;
   const sadLow = clamp(sadGate ? sadBase : sadBase * 0.25);
 
   const tense = clamp(
-    browDownDelta * 2.2 +
-      (features.browDown ?? 0) * 0.55 +
-      mouthPressDelta * 1.5 +
-      (features.mouthPress ?? 0) * 0.45 +
-      jawOpenDelta * 0.65 +
-      mouthStretchDelta * 0.45 +
-      (features.eyeWide ?? 0) * 0.2 -
-      smile * 0.35,
+    browDown * 1.95 +
+      mouthPress * 1.55 +
+      eyeWide * 0.48 +
+      jawOpen * 0.45 +
+      mouthStretch * 0.35 -
+      smile * 0.42 -
+      frown * 0.2,
   );
 
   const activeMax = Math.max(happy, sadLow, tense);
@@ -244,7 +183,7 @@ export function expressionStateFromTag(tag, scores, facePresent = true) {
   if (tag === "happy") {
     return {
       confidence,
-      energy: clamp(0.56 + confidence * 0.34, 0.52, 0.9),
+      energy: clamp(0.44 + confidence * 0.14, 0.42, 0.58),
       facePresent,
       scores,
       tag,
@@ -266,7 +205,7 @@ export function expressionStateFromTag(tag, scores, facePresent = true) {
   if (tag === "sad_low") {
     return {
       confidence,
-      energy: clamp(0.38 - confidence * 0.18, 0.12, 0.44),
+      energy: clamp(0.34 - confidence * 0.12, 0.16, 0.4),
       facePresent,
       scores,
       tag,
@@ -276,17 +215,16 @@ export function expressionStateFromTag(tag, scores, facePresent = true) {
 
   return {
     confidence,
-    energy: clamp(0.28 + (1 - confidence) * 0.08, 0.24, 0.4),
+    energy: 0.32,
     facePresent,
     scores,
     tag: "relaxed",
-    valence: clamp(0.66 + confidence * 0.08, 0.58, 0.78),
+    valence: clamp(0.54 + confidence * 0.08, 0.54, 0.62),
   };
 }
 
 export function createExpressionTrackerState() {
   return {
-    baseline: createExpressionBaseline(),
     candidate: { tag: "relaxed", count: 0 },
     smoothedScores: initialExpressionScores(),
     tag: "relaxed",
@@ -295,23 +233,7 @@ export function createExpressionTrackerState() {
 
 export function updateExpressionTracker(tracker, categories) {
   const features = expressionFeatures(categories);
-
-  if (tracker.baseline.samples < FACE_BASELINE_FRAMES) {
-    const baseline = addBaselineSample(tracker.baseline, features);
-    return {
-      expression: expressionStateFromTag("relaxed", initialExpressionScores(), true),
-      sample: null,
-      status: "calibrating",
-      tracker: {
-        ...tracker,
-        baseline,
-        smoothedScores: initialExpressionScores(),
-        tag: "relaxed",
-      },
-    };
-  }
-
-  const rawScores = scoreExpressionFeatures(features, baselineMeans(tracker.baseline));
+  const rawScores = scoreExpressionFeatures(features);
   const smoothedScores = Object.fromEntries(
     EXPRESSION_TAGS.map((tag) => [
       tag,

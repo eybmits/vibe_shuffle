@@ -7,8 +7,8 @@ client-only; there is no backend service.
 
 - `src/App.jsx`: complete experiment UI, state machine, playback handling,
   expression sampling, track ranking, rating modal, and CSV export.
-- `src/expressionModel.js`: pure local expression scoring, baseline
-  calibration, temporal switching, and listening-window summaries.
+- `src/expressionModel.js`: pure local expression scoring, temporal switching,
+  and listening-window summaries.
 - `src/physiologyModel.js`: pure BLE heart-rate parsing, RR filtering, HRV
   metrics, baseline normalization, and face/ECG fusion.
 - `src/data/musicCatalog.json`: static track catalog consumed by the app.
@@ -54,10 +54,13 @@ model estimates:
 - `tense`
 - `sad_low`
 
-The classifier uses a short neutral baseline, exponential smoothing, minimum
-sustained samples, and switching margins to reduce flicker. Neutral/low-evidence
-faces default to `relaxed`; `sad_low` requires sustained frown/mouth-corner
-evidence plus low smile evidence. Camera frames are not stored or uploaded.
+The classifier does not use a personal face baseline. It uses absolute
+blendshape cues, exponential smoothing, minimum sustained samples, and switching
+margins to reduce flicker. Neutral/low-evidence faces default to `relaxed`.
+Smile evidence primarily increases Valence, while only strong facial tension
+contributes high face-derived Arousal when ECG/HRV is unavailable. `sad_low`
+requires sustained frown/downturned-mouth evidence plus low smile evidence.
+Camera frames are not stored or uploaded.
 
 Track selection uses the average expression scores across the just-finished
 listening window, not the last detected instant. This makes brief end-of-song
@@ -71,11 +74,11 @@ devices are logged as `bpm_only` and do not drive selection. RR intervals are
 filtered to `300-2000 ms`, implausible jumps are rejected as artifacts, and the
 app computes mean HR, mean RR, RMSSD, SDNN, pNN20, RR count, and artifact rate.
 
-After connection, the app runs a neutral 60 second baseline and stores only
-session-local baseline statistics. In Vibe Shuffle, physiology contributes
-arousal, while the face-expression window remains the primary Valence
-signal. This follows the project constraint that HR/HRV should not be treated as
-a standalone emotion classifier.
+After connection, the app runs a neutral 60 second physiology baseline and
+stores only session-local baseline statistics. In Vibe Shuffle, ECG/HRV provides
+the dominant Arousal coordinate when quality is good, while the face-expression
+window remains the primary Valence signal. This follows the project constraint
+that HR/HRV should not be treated as a standalone emotion classifier.
 
 ## Playback Paths
 

@@ -250,12 +250,14 @@ export function fuseEmotionSignals(faceSummary, physiologySummary) {
   const physiologyArousal = physiologySummary?.physiology_arousal;
   const faceEnergy = Number(faceSummary?.energy ?? 0.3);
   let valence = Number(faceSummary?.valence ?? 0.66);
-  const energy = physiologyUsable
-    ? clamp(physiologyArousal * 0.65 + faceEnergy * 0.35)
-    : clamp(faceEnergy);
+  let energy = physiologyUsable ? clamp(physiologyArousal) : clamp(faceEnergy);
+
+  if (physiologyUsable && faceTag === "tense" && faceConfidence >= 0.55) {
+    energy = Math.max(energy, faceEnergy);
+  }
 
   if (physiologyUsable && faceTag === "relaxed" && physiologyArousal >= 0.62) {
-    valence = Math.min(valence, 0.45);
+    valence = Math.min(valence, 0.48);
   }
 
   const tag = quadrantFromAxes(valence, energy);

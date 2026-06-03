@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   classifyExpressionScores,
-  createExpressionBaseline,
   createExpressionTrackerState,
   expressionStateFromTag,
   scoreExpressionFeatures,
@@ -70,8 +69,8 @@ function categoriesFromFeatures(features) {
   return Object.entries(pairs).map(([categoryName, score]) => ({ categoryName, score }));
 }
 
-test("neutral baseline remains relaxed", () => {
-  const scores = scoreExpressionFeatures(neutral, neutral);
+test("neutral absolute expression remains relaxed", () => {
+  const scores = scoreExpressionFeatures(neutral);
   const tag = classifySequence([scores, scores, scores, scores]);
 
   assert.equal(tag, "relaxed");
@@ -79,7 +78,7 @@ test("neutral baseline remains relaxed", () => {
 });
 
 test("smile sequence becomes happy", () => {
-  const scores = scoreExpressionFeatures({ ...neutral, cheekSquint: 0.12, smile: 0.48 }, neutral);
+  const scores = scoreExpressionFeatures({ ...neutral, cheekSquint: 0.12, smile: 0.48 });
   const tag = classifySequence([scores, scores, scores, scores]);
 
   assert.equal(tag, "happy");
@@ -88,9 +87,8 @@ test("smile sequence becomes happy", () => {
 test("brief one-frame frown does not become sad_low", () => {
   const frownScores = scoreExpressionFeatures(
     { ...neutral, browInnerUp: 0.12, frown: 0.42, mouthPress: 0.14 },
-    neutral,
   );
-  const relaxedScores = scoreExpressionFeatures(neutral, neutral);
+  const relaxedScores = scoreExpressionFeatures(neutral);
   const tag = classifySequence([frownScores, relaxedScores, relaxedScores, relaxedScores]);
 
   assert.equal(tag, "relaxed");
@@ -99,7 +97,6 @@ test("brief one-frame frown does not become sad_low", () => {
 test("sustained frown becomes sad_low", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, browInnerUp: 0.16, frown: 0.45, mouthPress: 0.16, smile: 0.01 },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
@@ -109,7 +106,6 @@ test("sustained frown becomes sad_low", () => {
 test("strong sad expression switches faster than subtle expressions", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, browInnerUp: 0.18, frown: 0.42, mouthPress: 0.12, smile: 0.005 },
-    neutral,
   );
   let tag = "relaxed";
   let candidate = { tag: "relaxed", count: 0 };
@@ -133,7 +129,6 @@ test("subtle sustained sad expression becomes sad_low", () => {
       mouthShrugLower: 0.07,
       smile: 0.005,
     },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
@@ -152,7 +147,6 @@ test("downturned lower mouth without strong frown becomes sad_low", () => {
       mouthShrugLower: 0.025,
       smile: 0.004,
     },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
@@ -163,7 +157,6 @@ test("downturned lower mouth without strong frown becomes sad_low", () => {
 test("raised inner brow without mouth cue stays relaxed", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, browInnerUp: 0.13, frown: 0.02, mouthShrugLower: 0.012, smile: 0.015 },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
@@ -171,7 +164,7 @@ test("raised inner brow without mouth cue stays relaxed", () => {
 });
 
 test("low smile alone stays relaxed", () => {
-  const scores = scoreExpressionFeatures({ ...neutral, smile: 0.004 }, neutral);
+  const scores = scoreExpressionFeatures({ ...neutral, smile: 0.004 });
   const tag = classifySequence([scores, scores, scores, scores]);
 
   assert.equal(tag, "relaxed");
@@ -181,7 +174,6 @@ test("low smile alone stays relaxed", () => {
 test("mouth tension alone stays relaxed", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, mouthPress: 0.09, smile: 0.004 },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
@@ -189,12 +181,8 @@ test("mouth tension alone stays relaxed", () => {
   assert.ok(scores.sad_low < 0.24);
 });
 
-test("tracker detects subtle sad expression after neutral baseline", () => {
+test("tracker detects subtle sad expression without face baseline", () => {
   let tracker = createExpressionTrackerState();
-
-  for (let index = 0; index < 30; index += 1) {
-    tracker = updateExpressionTracker(tracker, categoriesFromFeatures(neutral)).tracker;
-  }
 
   const subtleSad = {
     ...neutral,
@@ -214,12 +202,8 @@ test("tracker detects subtle sad expression after neutral baseline", () => {
   assert.equal(expression.tag, "sad_low");
 });
 
-test("tracker detects downturned lower mouth after neutral baseline", () => {
+test("tracker detects downturned lower mouth without face baseline", () => {
   let tracker = createExpressionTrackerState();
-
-  for (let index = 0; index < 30; index += 1) {
-    tracker = updateExpressionTracker(tracker, categoriesFromFeatures(neutral)).tracker;
-  }
 
   const downturnedMouthSad = {
     ...neutral,
@@ -240,7 +224,7 @@ test("tracker detects downturned lower mouth after neutral baseline", () => {
   assert.equal(expression.tag, "sad_low");
 });
 
-test("sad expression can still exceed threshold when baseline is not perfectly neutral", () => {
+test("sad expression does not depend on a matching neutral baseline", () => {
   const subtleSad = {
     ...neutral,
     browInnerUp: 0.09,
@@ -249,7 +233,7 @@ test("sad expression can still exceed threshold when baseline is not perfectly n
     mouthShrugLower: 0.07,
     smile: 0.005,
   };
-  const scores = scoreExpressionFeatures(subtleSad, subtleSad);
+  const scores = scoreExpressionFeatures(subtleSad);
 
   assert.ok(scores.sad_low >= 0.24);
 });
@@ -257,11 +241,18 @@ test("sad expression can still exceed threshold when baseline is not perfectly n
 test("brow and mouth tension without smile becomes tense", () => {
   const scores = scoreExpressionFeatures(
     { ...neutral, browDown: 0.42, eyeWide: 0.13, jawOpen: 0.1, mouthPress: 0.34, smile: 0.01 },
-    neutral,
   );
   const tag = classifySequence([scores, scores, scores, scores]);
 
   assert.equal(tag, "tense");
+});
+
+test("smile moves valence more than face arousal", () => {
+  const scores = scoreExpressionFeatures({ ...neutral, cheekSquint: 0.16, smile: 0.52 });
+  const state = expressionStateFromTag("happy", scores);
+
+  assert.ok(state.valence > 0.85);
+  assert.ok(state.energy < 0.6);
 });
 
 test("window average beats last-second noise", () => {
