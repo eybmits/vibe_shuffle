@@ -416,7 +416,7 @@ function rankSongs(songs, mode, mood, currentSongId, seed, recentIds, selectedGe
   const genrePool = selectedGenreSet.size
     ? available.filter((song) => selectedGenreSet.has(song.trackGenre))
     : available;
-  const basePool = mode === GENRE_VIBE_MODE && genrePool.length ? genrePool : available;
+  const basePool = genrePool.length ? genrePool : available;
   const vibePool = basePool.filter((song) => song.quadrant === mood.tag);
   const isAdaptiveMode = mode === GENRE_VIBE_MODE || mode === "vibe";
   const pool = isAdaptiveMode && vibePool.length ? vibePool : basePool;
@@ -1942,8 +1942,8 @@ function TasteOnboardingModal({
                   Choose the sounds you would actually listen to.
                 </h2>
                 <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">
-                  The first block stays random. The second block uses your selected music taste
-                  plus the detected mood state in the background.
+                  Both blocks use your selected music taste. The first block stays random; the
+                  second adds the detected mood state in the background.
                 </p>
               </div>
               <div className="rounded-lg border border-white/12 bg-white/7 p-4">

@@ -40,13 +40,14 @@ client-only; there is no backend service.
    blendshapes.
 6. Optional ECG/heart-rate samples are read locally through Web Bluetooth Heart
    Rate Service notifications.
-7. Random Shuffle ignores expression, physiology, and selected genre state for
-   track selection.
+7. Both blocks use the same participant-selected genre pool as the candidate
+   set.
 8. At the end of each listening window, the app averages expression samples and
    summarizes HR/HRV samples from that window.
-9. The hidden Vibe block first filters to the participant-selected genres, then
-   ranks by fused face Valence plus ECG/HRV arousal when physiology quality is
-   good; otherwise it falls back to face-only window selection.
+9. Random Shuffle ranks that shared genre pool randomly. The hidden Vibe block
+   ranks the same pool by fused face Valence plus ECG/HRV arousal when
+   physiology quality is good; otherwise it falls back to face-only window
+   selection.
 10. After each listening window, the participant must submit a 1-4 rating.
 11. At protocol completion, ratings are exported as CSV.
 

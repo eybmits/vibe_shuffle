@@ -182,8 +182,9 @@ truth.
 
 ## App Behavior
 
-Before setup, the participant selects preferred music genres. Random Shuffle
-ignores those choices and selects from the full catalog. The hidden adaptive
-block first filters to the selected genres, then uses the averaged expression
-and optional ECG/HRV state from the just-finished listening window. Adaptive
-trials can select from `happy`, `relaxed`, `tense`, or `sad_low` matching pools.
+Before setup, the participant selects preferred music genres. Both Random
+Shuffle and the hidden adaptive block use that same selected genre pool. Random
+Shuffle ranks the pool pseudo-randomly; the adaptive block uses the averaged
+expression and optional ECG/HRV state from the just-finished listening window.
+Adaptive trials can select from `happy`, `relaxed`, `tense`, or `sad_low`
+matching pools inside the same genre-constrained candidate set.

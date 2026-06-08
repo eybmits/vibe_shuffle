@@ -20,19 +20,19 @@ neutral listening session and asks for a mood-fit rating after each track.
 
 Random Shuffle:
 
+- Uses the same participant-selected genre pool as the adaptive block.
 - Selects tracks using a deterministic pseudo-random score.
 - Does not use expression state for ranking.
-- Does not use the selected genre baseline for ranking.
 - Avoids very recent repeats where possible.
 
 Hidden genre-constrained Vibe Shuffle:
 
+- Uses the same participant-selected genre pool as Random Shuffle.
 - Uses the averaged expression state from the just-finished listening window.
 - If ECG/HRV quality is good, fuses face-expression Valence with HR/HRV-derived
   Arousal.
 - Maps the fused Valence/Arousal state to `happy`, `relaxed`, `tense`, or
   `sad_low`.
-- Filters first to the participant-selected music genres.
 - Selects from the matching track quadrant inside that genre pool when
   available.
 - Falls back to the selected genre pool if the matching quadrant is empty.
