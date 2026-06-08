@@ -10,7 +10,7 @@ Shuffle against Vibe Shuffle.
 - Block 1: Random Shuffle.
 - Block 2: hidden genre-constrained Vibe Shuffle.
 - Tracks per block: 5.
-- Listening window per track: 18 seconds.
+- Listening window per track: 30 seconds by default.
 - Total ratings per session: 10.
 
 The participant does not see the current block or condition. The UI presents a
@@ -42,6 +42,10 @@ The live camera panel may update during playback, but Vibe track selection is
 based on the listening-window average. A brief last-second expression or
 physiology spike therefore does not dominate the next song choice.
 
+Participants can use `Jump to rating` to end the current listening window early.
+The rating is still mandatory before the next track starts, and the CSV marks
+that trial with `jumped_to_rating=true`.
+
 ## Rating
 
 After each track, a modal blocks progress until the participant rates:
@@ -62,6 +66,7 @@ The exported CSV includes:
 - block number and hidden block mode
 - selected genre slugs and labels
 - track number
+- listening window duration and whether the participant jumped to rating
 - track id, source, Jamendo id, Spotify id, Spotify URI
 - title, artist, album, genre, popularity
 - song quadrant

@@ -26,7 +26,8 @@ different `videoId`, `watchUrl`, and `embedUrl`, then rebuild/commit the catalog
 ## Rating Does Not Appear
 
 The rating modal appears after the listening window finishes. The current
-window is 18 seconds. The next track cannot start until a rating is selected.
+window is 30 seconds. The participant can also click `Jump to rating` to open
+the rating modal early. The next track cannot start until a rating is selected.
 
 ## Camera Blocked
 

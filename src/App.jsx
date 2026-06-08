@@ -40,7 +40,7 @@ import {
 } from "./physiologyModel.js";
 
 const TRACKS_PER_BLOCK = 5;
-const LISTENING_WINDOW_SECONDS = 18;
+const LISTENING_WINDOW_SECONDS = 30;
 const MEDIAPIPE_VERSION = "0.10.35";
 
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
@@ -240,6 +240,8 @@ function ratingsToCsv(ratings) {
     "block_number",
     "block_mode",
     "track_number",
+    "listening_window_seconds",
+    "jumped_to_rating",
     "song_id",
     "song_source",
     "jamendo_id",
@@ -2314,6 +2316,7 @@ export default function App() {
   const [trackProgress, setTrackProgress] = useState(0);
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
+  const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [tasteOnboardingComplete, setTasteOnboardingComplete] = useState(false);
   const youtubeFrameRef = useRef(null);
@@ -2356,6 +2359,12 @@ export default function App() {
     return selectedGenres.map((genre) => labels.get(genre) ?? genre);
   }, [genreOptions, selectedGenres]);
   const currentRating = ratings.find((rating) => rating.trial_id === trialId);
+  const canJumpToRating =
+    sessionStarted &&
+    !protocolComplete &&
+    !ratingPromptOpen &&
+    !currentRating &&
+    (isPlaying || trackProgress > 0);
   const totalTrials = PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK;
   const completedTrials = ratings.length;
   const progressPercent = Math.round((completedTrials / totalTrials) * 100);
@@ -2415,6 +2424,19 @@ export default function App() {
 
   function pauseYouTubeVideo() {
     sendYouTubeCommand("pauseVideo");
+  }
+
+  function openRatingPrompt(jumped = false) {
+    setIsPlaying(false);
+    pauseSpotify();
+    pauseDemoAudio();
+    pauseYouTubeVideo();
+    setTrackProgress(100);
+    setRatingPromptOpen(true);
+
+    if (jumped) {
+      setJumpedTrialIds((items) => (items.includes(trialId) ? items : [...items, trialId]));
+    }
   }
 
   useEffect(() => {
@@ -2483,8 +2505,7 @@ export default function App() {
 
         if (nextValue >= 100) {
           window.setTimeout(() => {
-            setIsPlaying(false);
-            setRatingPromptOpen(true);
+            openRatingPrompt(false);
           }, 0);
         }
 
@@ -2669,6 +2690,8 @@ export default function App() {
         block_mode: mode,
         mode,
         track_number: currentTrackIndex + 1,
+        listening_window_seconds: LISTENING_WINDOW_SECONDS,
+        jumped_to_rating: jumpedTrialIds.includes(trialId),
         song_id: currentSong.id,
         song_source: currentSong.source ?? catalogSource,
         jamendo_id: currentSong.jamendoId,
@@ -2750,10 +2773,16 @@ export default function App() {
     setSessionStarted(false);
     setIsPlaying(false);
     setPlaybackNotice("");
+    setJumpedTrialIds([]);
     setSelectedGenres([]);
     setTasteOnboardingComplete(false);
     pauseYouTubeVideo();
     stopDemoAudio();
+  }
+
+  function jumpToRating() {
+    if (!canJumpToRating) return;
+    openRatingPrompt(true);
   }
 
   async function togglePlayback() {
@@ -2936,16 +2965,27 @@ export default function App() {
 
                 <div>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      aria-label={isPlaying ? "Pause music" : "Start music"}
-                      className="inline-flex h-14 w-full items-center justify-center gap-3 rounded-full bg-[#32e6c8] px-6 text-base font-semibold text-[#020712] shadow-[0_22px_56px_rgba(0,0,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45 sm:h-16 sm:w-auto sm:px-8 xl:h-[3.25rem] xl:px-7"
-                      disabled={!sessionStarted || protocolComplete || ratingPromptOpen}
-                      onClick={togglePlayback}
-                      type="button"
-                    >
-                      {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
-                      {isPlaying ? "Pause" : trackProgress > 0 ? "Resume" : "Start music"}
-                    </button>
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                      <button
+                        aria-label={isPlaying ? "Pause music" : "Start music"}
+                        className="inline-flex h-14 w-full items-center justify-center gap-3 rounded-full bg-[#32e6c8] px-6 text-base font-semibold text-[#020712] shadow-[0_22px_56px_rgba(0,0,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45 sm:h-16 sm:w-auto sm:px-8 xl:h-[3.25rem] xl:px-7"
+                        disabled={!sessionStarted || protocolComplete || ratingPromptOpen}
+                        onClick={togglePlayback}
+                        type="button"
+                      >
+                        {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
+                        {isPlaying ? "Pause" : trackProgress > 0 ? "Resume" : "Start music"}
+                      </button>
+                      <button
+                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/8 px-5 text-sm font-semibold text-[#c7d7e6] transition hover:border-[#32e6c8]/50 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-white/32 sm:h-16 sm:w-auto xl:h-[3.25rem]"
+                        disabled={!canJumpToRating}
+                        onClick={jumpToRating}
+                        type="button"
+                      >
+                        <SkipForward className="size-4" />
+                        Jump to rating
+                      </button>
+                    </div>
                     <div className="flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
                       <span
                         className={`size-2 rounded-full ${
