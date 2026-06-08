@@ -5,8 +5,10 @@ Shuffle against Vibe Shuffle.
 
 ## Session Structure
 
+- Pre-session: participant selects preferred instrumental genres as a music
+  taste baseline.
 - Block 1: Random Shuffle.
-- Block 2: Vibe Shuffle.
+- Block 2: hidden genre-constrained Vibe Shuffle.
 - Tracks per block: 5.
 - Listening window per track: 18 seconds.
 - Total ratings per session: 10.
@@ -20,17 +22,21 @@ Random Shuffle:
 
 - Selects tracks using a deterministic pseudo-random score.
 - Does not use expression state for ranking.
+- Does not use the selected genre baseline for ranking.
 - Avoids very recent repeats where possible.
 
-Vibe Shuffle:
+Hidden genre-constrained Vibe Shuffle:
 
 - Uses the averaged expression state from the just-finished listening window.
 - If ECG/HRV quality is good, fuses face-expression Valence with HR/HRV-derived
   Arousal.
 - Maps the fused Valence/Arousal state to `happy`, `relaxed`, `tense`, or
   `sad_low`.
-- Selects from the matching track quadrant when available.
-- Falls back to the broader catalog if the matching pool is empty.
+- Filters first to the participant-selected music genres.
+- Selects from the matching track quadrant inside that genre pool when
+  available.
+- Falls back to the selected genre pool if the matching quadrant is empty.
+- Falls back to the broader catalog only if the selected genre pool is empty.
 
 The live camera panel may update during playback, but Vibe track selection is
 based on the listening-window average. A brief last-second expression or
@@ -54,12 +60,14 @@ The exported CSV includes:
 - protocol/session id
 - timestamp
 - block number and hidden block mode
+- selected genre slugs and labels
 - track number
 - track id, source, Jamendo id, Spotify id, Spotify URI
-- title, artist, album
+- title, artist, album, genre, popularity
 - song quadrant
 - song Valence, Arousal, instrumentalness, speechiness
 - catalog category source, analysis confidence, external URL, license URL
+- YouTube video id, watch URL, and search URL
 - detected expression label
 - detected Valence, Arousal, confidence
 - whether a face was visible

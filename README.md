@@ -16,7 +16,11 @@ https://eybmits.github.io/vibe_shuffle_site/
 
 - Runs a fixed validation protocol: Random Shuffle first, then Vibe Shuffle.
 - Keeps the condition hidden from the participant.
-- Plays real instrumental fallback tracks immediately, without external setup.
+- Starts with a Netflix-inspired music taste baseline where the participant
+  selects preferred instrumental genres.
+- Plays direct embedded YouTube videos for the selected tracks.
+- Uses a 100-track high-instrumentalness catalog generated from the Kaggle
+  Spotify Tracks Dataset mirror.
 - Supports a legal 100-track Jamendo catalog with downloadable instrumental audio.
 - Keeps Spotify as an optional metadata/playback path, not as the download source.
 - Uses local MediaPipe Face Landmarker blendshapes for expression detection.
@@ -30,10 +34,11 @@ https://eybmits.github.io/vibe_shuffle_site/
 ## Current Prototype Status
 
 The deployed app is ready for coauthor review as an MVP demo. It currently uses
-the bundled real instrumental fallback catalog. The preferred final catalog path
-is Jamendo: the script collects up to 100 real instrumental tracks, keeps
-license/download metadata, estimates Valence/Arousal from Jamendo music metadata
-and waveform peaks, and writes the static catalog used by the app.
+the Kaggle Spotify Tracks Dataset mirror to build a static 100-track catalog
+with strict instrumental-character filters and direct YouTube embeds. The app
+does not download Spotify audio; the browser displays YouTube videos for
+participant playback. Jamendo remains available as an optional licensed-audio
+catalog path for future experiments that need downloadable/streamable MP3 URLs.
 
 The camera detector is expression detection, not identity recognition. Optional
 ECG/HRV is used as an arousal signal, not as a standalone emotion classifier.
@@ -76,6 +81,26 @@ testing without hardware.
 The app reads a static catalog from `src/data/musicCatalog.json`.
 
 Current public-demo path:
+
+```bash
+npm run kaggle:catalog
+```
+
+This builds a 100-track high-instrumentalness catalog from the Spotify Tracks
+Dataset mirror and resolves the first YouTube video for each track. It writes
+`src/data/musicCatalog.json` and `data/kaggle_spotify_youtube_catalog.csv`.
+
+The generated catalog keeps:
+
+- Spotify track id/URI and audio-feature metadata from the dataset,
+- `valence`, `energy`/Arousal, `instrumentalness`, `speechiness`, and quadrant,
+- genre label for the participant taste-baseline screen,
+- direct YouTube video id, watch URL, search URL, and embed URL.
+
+The raw dataset CSV is ignored by git; the compact generated JSON/CSV are kept
+in the repo.
+
+Legacy curated fallback:
 
 ```bash
 npm run curated:catalog

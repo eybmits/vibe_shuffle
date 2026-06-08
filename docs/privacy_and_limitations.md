@@ -54,6 +54,15 @@ playlist labels rather than measured Valence/Arousal features.
 
 Spotify full-track playback requires Spotify Premium and an authenticated user.
 
+## YouTube Playback Limitations
+
+The current public catalog embeds YouTube videos for playback. Camera frames,
+expression features, ECG/HRV samples, and ratings are not sent to YouTube by the
+app, but the YouTube iframe itself is external web content and may set cookies,
+show ads, block embedding, or require age/account checks depending on the
+selected video. The catalog stores the first resolved YouTube result for a track
+query, so coauthors should audit the generated CSV before formal studies.
+
 ## ECG / HRV Limitations
 
 The ECG/heart-rate path uses the browser's Web Bluetooth access to the standard
@@ -90,6 +99,6 @@ The expression classifier estimates `happy`, `relaxed`, `tense`, and `sad_low`.
 The ECG/HRV arousal estimate should also be treated as an experimental signal
 source.
 
-The bundled fallback catalog is useful for demos, but the final study should use
-the generated Jamendo catalog or another licensed source aligned with the
-experimental design.
+The bundled Kaggle/YouTube catalog is useful for demos and pilot validation, but
+the final study should audit the selected videos or use a licensed source such
+as Jamendo if downloadable/controllable audio is required.

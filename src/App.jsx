@@ -9,6 +9,7 @@ import {
   Gauge,
   Headphones,
   HeartPulse,
+  ListMusic,
   Lock,
   Music2,
   Pause,
@@ -19,6 +20,7 @@ import {
   SkipForward,
   Sparkles,
   Waves,
+  Youtube,
 } from "lucide-react";
 import musicCatalog from "./data/musicCatalog.json";
 import {
@@ -76,7 +78,8 @@ const RATING_OPTIONS = [
   },
 ];
 
-const PROTOCOL_BLOCKS = [{ mode: "random" }, { mode: "vibe" }];
+const GENRE_VIBE_MODE = "genre_vibe";
+const PROTOCOL_BLOCKS = [{ mode: "random" }, { mode: GENRE_VIBE_MODE }];
 
 const SESSION_MODES = ["Deep Work", "Recharge", "Destress", "Unwind"];
 
@@ -126,6 +129,37 @@ function getCatalogTracks() {
   return musicCatalog.tracks ?? [];
 }
 
+function getCatalogGenreOptions(songs) {
+  const counts = songs.reduce((items, song) => {
+    if (!song.trackGenre) return items;
+    const current = items.get(song.trackGenre) ?? {
+      count: 0,
+      genre: song.trackGenre,
+      label: song.trackGenreLabel ?? song.trackGenre,
+      samples: [],
+    };
+    current.count += 1;
+    if (current.samples.length < 3) current.samples.push(song.title);
+    items.set(song.trackGenre, current);
+    return items;
+  }, new Map());
+
+  const configuredOptions = Array.isArray(musicCatalog) ? [] : (musicCatalog.genreOptions ?? []);
+  const orderedOptions = configuredOptions
+    .map((option) => {
+      const fromTracks = counts.get(option.genre);
+      if (!fromTracks) return null;
+      return {
+        ...fromTracks,
+        label: option.label ?? fromTracks.label,
+      };
+    })
+    .filter(Boolean);
+
+  if (orderedOptions.length) return orderedOptions;
+  return Array.from(counts.values()).sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function normalizeSong(song, index) {
   const quadrant =
     song.quadrant in EMOTION_QUADRANTS
@@ -141,6 +175,9 @@ function normalizeSong(song, index) {
     title: song.title ?? "Untitled track",
     artist: song.artist ?? "Unknown artist",
     album: song.album ?? "",
+    trackGenre: song.trackGenre ?? null,
+    trackGenreLabel: song.trackGenreLabel ?? song.trackGenre ?? null,
+    popularity: Number(song.popularity ?? 0),
     albumImageUrl: song.albumImageUrl ?? null,
     audioUrl: song.audioUrl ?? song.previewUrl ?? null,
     downloadUrl: song.downloadUrl ?? null,
@@ -159,6 +196,11 @@ function normalizeSong(song, index) {
     analysisConfidence: Number(song.analysisConfidence ?? 0),
     categorySource: song.categorySource ?? null,
     source: song.source ?? null,
+    youtubeEmbedUrl: song.youtubeEmbedUrl ?? null,
+    youtubeQuery: song.youtubeQuery ?? null,
+    youtubeSearchUrl: song.youtubeSearchUrl ?? null,
+    youtubeUrl: song.youtubeUrl ?? null,
+    youtubeVideoId: song.youtubeVideoId ?? null,
   };
 }
 
@@ -193,6 +235,8 @@ function ratingsToCsv(ratings) {
   const columns = [
     "protocol_id",
     "timestamp",
+    "selected_genres",
+    "selected_genre_labels",
     "block_number",
     "block_mode",
     "track_number",
@@ -204,6 +248,9 @@ function ratingsToCsv(ratings) {
     "song_title",
     "artist",
     "album",
+    "song_track_genre",
+    "song_track_genre_label",
+    "song_popularity",
     "song_quadrant",
     "song_valence",
     "song_arousal",
@@ -213,6 +260,9 @@ function ratingsToCsv(ratings) {
     "song_analysis_confidence",
     "song_external_url",
     "song_license_url",
+    "youtube_video_id",
+    "youtube_url",
+    "youtube_search_url",
     "detected_expression",
     "detected_expression_label",
     "detected_valence",
@@ -358,10 +408,16 @@ function deterministicScore(id, seed) {
   return hash / 9973;
 }
 
-function rankSongs(songs, mode, mood, currentSongId, seed, recentIds) {
+function rankSongs(songs, mode, mood, currentSongId, seed, recentIds, selectedGenres = []) {
   const available = songs.filter((song) => song.id !== currentSongId);
-  const vibePool = available.filter((song) => song.quadrant === mood.tag);
-  const pool = mode === "vibe" && vibePool.length ? vibePool : available;
+  const selectedGenreSet = new Set(selectedGenres);
+  const genrePool = selectedGenreSet.size
+    ? available.filter((song) => selectedGenreSet.has(song.trackGenre))
+    : available;
+  const basePool = mode === GENRE_VIBE_MODE && genrePool.length ? genrePool : available;
+  const vibePool = basePool.filter((song) => song.quadrant === mood.tag);
+  const isAdaptiveMode = mode === GENRE_VIBE_MODE || mode === "vibe";
+  const pool = isAdaptiveMode && vibePool.length ? vibePool : basePool;
 
   return pool
     .map((song) => {
@@ -372,7 +428,7 @@ function rankSongs(songs, mode, mood, currentSongId, seed, recentIds) {
 
       return {
         ...song,
-        score: mode === "vibe" ? vibeScore : randomScore + recentPenalty,
+        score: isAdaptiveMode ? vibeScore : randomScore + recentPenalty,
         fit: Math.round(clamp(1 - distance, 0, 1) * 100),
       };
     })
@@ -1507,6 +1563,47 @@ function MoodMap({ mood }) {
   );
 }
 
+function buildYouTubeEmbedSrc(song) {
+  if (!song.youtubeVideoId && !song.youtubeEmbedUrl) return null;
+  const baseUrl =
+    song.youtubeEmbedUrl ??
+    `https://www.youtube.com/embed/${song.youtubeVideoId}?enablejsapi=1&rel=0&modestbranding=1&playsinline=1`;
+  const url = new URL(baseUrl);
+  url.searchParams.set("enablejsapi", "1");
+  url.searchParams.set("modestbranding", "1");
+  url.searchParams.set("playsinline", "1");
+  url.searchParams.set("rel", "0");
+  if (typeof window !== "undefined") url.searchParams.set("origin", window.location.origin);
+  return url.toString();
+}
+
+function YouTubeMedia({ isPlaying, onReadyPlay, song, youtubeFrameRef }) {
+  const src = buildYouTubeEmbedSrc(song);
+  const mediaClass =
+    "relative mx-auto aspect-video w-full max-w-[min(64vw,260px)] overflow-hidden rounded-lg border border-white/14 bg-[#020712] shadow-[0_24px_70px_rgba(0,0,0,0.38)] sm:max-w-[300px] md:max-w-[320px] lg:max-w-[260px] xl:max-w-[210px]";
+
+  if (!src) return null;
+
+  return (
+    <div className={mediaClass}>
+      <iframe
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+        className="absolute inset-0 h-full w-full"
+        onLoad={() => {
+          if (isPlaying) window.setTimeout(onReadyPlay, 350);
+        }}
+        ref={youtubeFrameRef}
+        src={src}
+        title={`${song.title} on YouTube`}
+      />
+      <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-[#020712]/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+        YouTube
+      </div>
+    </div>
+  );
+}
+
 function CoverArt({ isPlaying, song }) {
   const coverClass =
     "relative mx-auto aspect-square w-full max-w-[min(62vw,210px)] overflow-hidden rounded-lg border border-white/14 shadow-[0_24px_70px_rgba(0,0,0,0.38)] sm:max-w-[240px] md:max-w-[260px] lg:max-w-[220px] xl:max-w-[168px]";
@@ -1548,6 +1645,21 @@ function CoverArt({ isPlaying, song }) {
       </div>
     </div>
   );
+}
+
+function MediaStage({ isPlaying, onReadyPlay, song, youtubeFrameRef }) {
+  if (song.youtubeVideoId || song.youtubeEmbedUrl) {
+    return (
+      <YouTubeMedia
+        isPlaying={isPlaying}
+        onReadyPlay={onReadyPlay}
+        song={song}
+        youtubeFrameRef={youtubeFrameRef}
+      />
+    );
+  }
+
+  return <CoverArt isPlaying={isPlaying} song={song} />;
 }
 
 function SessionWaveform({ isPlaying, song }) {
@@ -1789,6 +1901,138 @@ function SetupStep({ children, complete, icon: Icon, title }) {
           <div className="mt-1 text-sm leading-5 text-[#9db0c4]">{children}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TasteOnboardingModal({
+  genreOptions,
+  onContinue,
+  selectedGenres,
+  setSelectedGenres,
+  trackCount,
+}) {
+  const selectedSet = new Set(selectedGenres);
+
+  function toggleGenre(genre) {
+    setSelectedGenres((items) =>
+      items.includes(genre) ? items.filter((item) => item !== genre) : [...items, genre],
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/92 px-3 py-4 backdrop-blur-xl sm:px-4 sm:py-6">
+      <section
+        aria-modal="true"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-6xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] shadow-[0_34px_120px_rgba(0,0,0,0.58)]"
+        role="dialog"
+      >
+        <div className="grid lg:grid-cols-[0.86fr_1.14fr]">
+          <div className="relative overflow-hidden bg-[#020712] p-5 sm:p-8">
+            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.28),rgba(7,24,39,0.92)_46%,rgba(249,115,22,0.36))]" />
+            <div className="relative flex min-h-[300px] flex-col justify-between gap-8 lg:min-h-full">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white">
+                  <ListMusic className="size-4" />
+                  Music taste baseline
+                </div>
+                <h2 className="mt-6 max-w-md text-4xl font-semibold leading-[0.98] tracking-tight text-white sm:text-6xl">
+                  Choose the sounds you would actually listen to.
+                </h2>
+                <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">
+                  The first block stays random. The second block uses your selected music taste
+                  plus the detected mood state in the background.
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/12 bg-white/7 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-[#32e6c8] text-[#020712]">
+                    <Youtube className="size-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-white">Direct YouTube playback</div>
+                    <div className="text-sm text-white/62">
+                      {trackCount} high-instrumentalness tracks with embedded videos.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 sm:p-8">
+            <SectionLabel icon={Headphones}>Vibe Shuffle</SectionLabel>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+                  Pick your music lanes.
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-[#9db0c4]">
+                  Select at least two genres. The protocol remains blinded during playback.
+                </p>
+              </div>
+              <span className="w-fit rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
+                {selectedGenres.length} selected
+              </span>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {genreOptions.map((option, index) => {
+                const active = selectedSet.has(option.genre);
+                const accent =
+                  ["#32e6c8", "#f97316", "#818cf8", "#22c55e", "#7dd3fc"][index % 5];
+
+                return (
+                  <button
+                    className={`group min-h-[112px] rounded-lg border p-3 text-left transition ${
+                      active
+                        ? "border-[#32e6c8] bg-[#32e6c8]/14 shadow-[0_18px_46px_rgba(0,0,0,0.25)]"
+                        : "border-white/10 bg-white/6 hover:border-white/22 hover:bg-white/9"
+                    }`}
+                    key={option.genre}
+                    onClick={() => toggleGenre(option.genre)}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="size-3 rounded-full shadow-[0_0_18px_currentColor]"
+                        style={{ background: accent, color: accent }}
+                      />
+                      {active ? <CheckCircle2 className="size-4 text-[#32e6c8]" /> : null}
+                    </div>
+                    <div className="mt-4 text-base font-semibold leading-tight text-white">
+                      {option.label}
+                    </div>
+                    <div className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#8ca3b8]">
+                      {option.count} tracks
+                    </div>
+                    {option.samples?.[0] ? (
+                      <div className="mt-3 line-clamp-2 text-xs leading-4 text-[#9db0c4]">
+                        {option.samples[0]}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-[#8ca3b8]">
+                Instrumental filter: Spotify instrumentalness at least 0.85, low speechiness.
+              </p>
+              <button
+                className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-6 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45"
+                disabled={selectedGenres.length < 2}
+                onClick={onContinue}
+                type="button"
+              >
+                Continue setup
+                <SkipForward className="size-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -2037,6 +2281,7 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
 
 export default function App() {
   const songs = useMemo(() => getCatalogTracks().map(normalizeSong), []);
+  const genreOptions = useMemo(() => getCatalogGenreOptions(songs), [songs]);
   const catalogSource = Array.isArray(musicCatalog) ? "legacy" : musicCatalog.source;
   const catalogRequiresSpotify =
     catalogSource?.startsWith("spotify") && songs.some((song) => song.spotifyUri);
@@ -2069,6 +2314,9 @@ export default function App() {
   const [trackProgress, setTrackProgress] = useState(0);
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
+  const [selectedGenres, setSelectedGenres] = useState([]);
+  const [tasteOnboardingComplete, setTasteOnboardingComplete] = useState(false);
+  const youtubeFrameRef = useRef(null);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
   const physiologyWindowRef = useRef([]);
@@ -2090,9 +2338,23 @@ export default function App() {
   const mood = signalStateToMood(liveFusion);
   const recentIds = useMemo(() => history.slice(-8).map((song) => song.id), [history]);
   const queue = useMemo(
-    () => rankSongs(songs, mode, mood, currentSong.id, queueSeed, recentIds).slice(0, 4),
-    [currentSong.id, mode, mood.energy, mood.tag, mood.valence, queueSeed, recentIds, songs],
+    () => rankSongs(songs, mode, mood, currentSong.id, queueSeed, recentIds, selectedGenres).slice(0, 4),
+    [
+      currentSong.id,
+      mode,
+      mood.energy,
+      mood.tag,
+      mood.valence,
+      queueSeed,
+      recentIds,
+      selectedGenres,
+      songs,
+    ],
   );
+  const selectedGenreLabels = useMemo(() => {
+    const labels = new Map(genreOptions.map((option) => [option.genre, option.label]));
+    return selectedGenres.map((genre) => labels.get(genre) ?? genre);
+  }, [genreOptions, selectedGenres]);
   const currentRating = ratings.find((rating) => rating.trial_id === trialId);
   const totalTrials = PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK;
   const completedTrials = ratings.length;
@@ -2131,6 +2393,28 @@ export default function App() {
   function resetSignalWindows() {
     resetExpressionWindow();
     resetPhysiologyWindow();
+  }
+
+  function sendYouTubeCommand(command) {
+    const frameWindow = youtubeFrameRef.current?.contentWindow;
+    if (!frameWindow) return;
+
+    frameWindow.postMessage(
+      JSON.stringify({
+        args: [],
+        event: "command",
+        func: command,
+      }),
+      "https://www.youtube.com",
+    );
+  }
+
+  function playYouTubeVideo() {
+    sendYouTubeCommand("playVideo");
+  }
+
+  function pauseYouTubeVideo() {
+    sendYouTubeCommand("pauseVideo");
   }
 
   useEffect(() => {
@@ -2217,6 +2501,15 @@ export default function App() {
     if (!isPlaying) {
       pauseSpotify();
       pauseDemoAudio();
+      pauseYouTubeVideo();
+      return;
+    }
+
+    if (currentSong.youtubeVideoId || currentSong.youtubeEmbedUrl) {
+      pauseSpotify();
+      pauseDemoAudio();
+      setPlaybackNotice("YouTube video is embedded for this track.");
+      window.setTimeout(playYouTubeVideo, 250);
       return;
     }
 
@@ -2251,6 +2544,8 @@ export default function App() {
   }, [
     currentSong.id,
     currentSong.spotifyUri,
+    currentSong.youtubeEmbedUrl,
+    currentSong.youtubeVideoId,
     isPlaying,
     pauseDemoAudio,
     pauseSpotify,
@@ -2265,16 +2560,31 @@ export default function App() {
     if (ratingPromptOpen) {
       pauseSpotify();
       pauseDemoAudio();
+      pauseYouTubeVideo();
     }
   }, [pauseDemoAudio, pauseSpotify, ratingPromptOpen]);
 
   function startSession() {
-    if (!setupReady || !songs.length) return;
+    if (!setupReady || !songs.length || !tasteOnboardingComplete) return;
     resetSignalWindows();
     setSessionStarted(true);
     setIsPlaying(false);
     setTrackProgress(0);
     setPlaybackNotice("Press Start music when you are ready.");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function completeTasteOnboarding() {
+    if (!selectedGenres.length || !songs.length) return;
+    const firstSong =
+      rankSongs(songs, "random", mood, currentSong.id, queueSeed, [], selectedGenres)[0] ??
+      songs[0];
+    setCurrentSong(firstSong);
+    setHistory([]);
+    setCurrentBlockIndex(0);
+    setCurrentTrackIndex(0);
+    setQueueSeed((value) => value + 7);
+    setTasteOnboardingComplete(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2295,7 +2605,15 @@ export default function App() {
 
     const selectionFusion = fuseEmotionSignals(currentWindowSummary(), currentPhysiologySummary());
     const selectionMood = signalStateToMood(selectionFusion);
-    const rankedSongs = rankSongs(songs, mode, selectionMood, currentSong.id, queueSeed, recentIds);
+    const rankedSongs = rankSongs(
+      songs,
+      mode,
+      selectionMood,
+      currentSong.id,
+      queueSeed,
+      recentIds,
+      selectedGenres,
+    );
     const nextSong = rankedSongs[0] ?? queue[0] ?? songs[0];
     const isLastTrackInBlock = currentTrackIndex === TRACKS_PER_BLOCK - 1;
     const isLastBlock = currentBlockIndex === PROTOCOL_BLOCKS.length - 1;
@@ -2305,6 +2623,7 @@ export default function App() {
       setRatingPromptOpen(false);
       setIsPlaying(false);
       stopDemoAudio();
+      pauseYouTubeVideo();
       window.setTimeout(() => downloadCsv(ratings, protocolId), 0);
       return;
     }
@@ -2318,6 +2637,7 @@ export default function App() {
         currentSong.id,
         queueSeed + 31,
         recentIds,
+        selectedGenres,
       );
 
       setCurrentBlockIndex((value) => value + 1);
@@ -2343,6 +2663,8 @@ export default function App() {
         protocol_id: protocolId,
         trial_id: trialId,
         timestamp: new Date().toISOString(),
+        selected_genres: selectedGenres.join("|"),
+        selected_genre_labels: selectedGenreLabels.join("|"),
         block_number: currentBlockIndex + 1,
         block_mode: mode,
         mode,
@@ -2355,6 +2677,9 @@ export default function App() {
         song_title: currentSong.title,
         artist: currentSong.artist,
         album: currentSong.album,
+        song_track_genre: currentSong.trackGenre,
+        song_track_genre_label: currentSong.trackGenreLabel,
+        song_popularity: currentSong.popularity,
         song_quadrant: currentSong.quadrant,
         song_valence: currentSong.valence,
         song_arousal: currentSong.energy,
@@ -2364,6 +2689,9 @@ export default function App() {
         song_analysis_confidence: currentSong.analysisConfidence,
         song_external_url: currentSong.externalUrl,
         song_license_url: currentSong.licenseUrl,
+        youtube_video_id: currentSong.youtubeVideoId,
+        youtube_url: currentSong.youtubeUrl,
+        youtube_search_url: currentSong.youtubeSearchUrl,
         detected_expression: expressionMood.tag,
         detected_expression_label: expressionMood.label,
         detected_valence: Number(expressionMood.valence.toFixed(3)),
@@ -2422,6 +2750,9 @@ export default function App() {
     setSessionStarted(false);
     setIsPlaying(false);
     setPlaybackNotice("");
+    setSelectedGenres([]);
+    setTasteOnboardingComplete(false);
+    pauseYouTubeVideo();
     stopDemoAudio();
   }
 
@@ -2432,11 +2763,14 @@ export default function App() {
       setIsPlaying(false);
       await pauseSpotify();
       await pauseDemoAudio();
+      pauseYouTubeVideo();
       return;
     }
 
     setIsPlaying(true);
-    if (currentSong.spotifyUri && spotifyPlayerReady) {
+    if (currentSong.youtubeVideoId || currentSong.youtubeEmbedUrl) {
+      window.setTimeout(playYouTubeVideo, 250);
+    } else if (currentSong.spotifyUri && spotifyPlayerReady) {
       await resumeSpotify();
     } else if (!currentSong.spotifyUri) {
       const resumed = await resumeDemoAudio();
@@ -2464,9 +2798,8 @@ export default function App() {
             No tracks are available.
           </h1>
           <p className="mt-2 text-sm text-[#9db0c4]">
-            Run <span className="font-mono">npm run spotify:catalog</span> with Spotify credentials
-            or <span className="font-mono">npm run jamendo:catalog</span> with a Jamendo Client ID
-            to generate the track catalog.
+            Run <span className="font-mono">npm run kaggle:catalog</span> to generate the
+            Spotify-dataset + YouTube instrumental catalog.
           </p>
         </section>
       </main>
@@ -2547,7 +2880,12 @@ export default function App() {
                     </span>
                   </div>
                   <div className="flex flex-1 items-center justify-center">
-                    <CoverArt isPlaying={isPlaying} song={currentSong} />
+                    <MediaStage
+                      isPlaying={isPlaying}
+                      onReadyPlay={playYouTubeVideo}
+                      song={currentSong}
+                      youtubeFrameRef={youtubeFrameRef}
+                    />
                   </div>
                   <SessionWaveform isPlaying={isPlaying} song={currentSong} />
                 </div>
@@ -2564,6 +2902,24 @@ export default function App() {
                     {currentSong.album ? (
                       <p className="mt-1 text-sm font-medium text-[#8ca3b8]">{currentSong.album}</p>
                     ) : null}
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9db0c4]">
+                      {currentSong.trackGenreLabel ? (
+                        <span className="rounded-full border border-white/10 bg-white/7 px-3 py-1">
+                          {currentSong.trackGenreLabel}
+                        </span>
+                      ) : null}
+                      {currentSong.youtubeUrl ? (
+                        <a
+                          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-3 py-1 text-[#c7d7e6] transition hover:border-[#32e6c8]/60 hover:text-white"
+                          href={currentSong.youtubeUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <Youtube className="size-3.5" />
+                          YouTube
+                        </a>
+                      ) : null}
+                    </div>
                     <div className="mt-4 hidden flex-wrap gap-2 sm:mt-5 2xl:flex">
                       {SESSION_MODES.map((modeLabel) => (
                         <span
@@ -2724,6 +3080,15 @@ export default function App() {
         ) : null}
       </div>
 
+      {!tasteOnboardingComplete && !protocolComplete ? (
+        <TasteOnboardingModal
+          genreOptions={genreOptions}
+          onContinue={completeTasteOnboarding}
+          selectedGenres={selectedGenres}
+          setSelectedGenres={setSelectedGenres}
+          trackCount={songs.length}
+        />
+      ) : null}
       <IntroModal
         cameraReady={cameraReady}
         catalogRequiresSpotify={catalogRequiresSpotify}
@@ -2734,7 +3099,7 @@ export default function App() {
         onStart={startSession}
         onStartCamera={face.start}
         onStartMockHeartSensor={physiology.startMock}
-        open={!sessionStarted && !protocolComplete}
+        open={tasteOnboardingComplete && !sessionStarted && !protocolComplete}
         physiology={physiology}
         setupReady={setupReady}
         spotifyAuth={spotifyAuth}

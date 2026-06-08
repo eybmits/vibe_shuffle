@@ -10,4 +10,5 @@ node_modules/
 dist/
 build/
 data/audio/
+data/spotify_tracks_dataset.csv
 public/audio/

@@ -13,8 +13,11 @@ client-only; there is no backend service.
   metrics, baseline normalization, and face/ECG fusion.
 - `src/data/musicCatalog.json`: static track catalog consumed by the app.
 - `src/data/spotifyCatalog.json`: legacy/optional Spotify catalog output.
+- `scripts/build_kaggle_spotify_youtube_catalog.mjs`: current public-demo
+  generator using the Kaggle Spotify Tracks Dataset mirror plus direct YouTube
+  video lookup.
 - `scripts/build_curated_instrumental_catalog.mjs`: current public-demo
-  catalog generator using Wikimedia Commons/Incompetech and selected Internet
+  fallback generator using Wikimedia Commons/Incompetech and selected Internet
   Archive instrumentals.
 - `scripts/build_jamendo_catalog.mjs`: preferred real-music catalog generator.
 - `scripts/build_internet_archive_catalog.mjs`: no-login real-music fallback
@@ -29,19 +32,23 @@ client-only; there is no backend service.
    `id`, `title`, `artist`, `spotifyUri`, `audioUrl`, `quadrant`,
    `valence`, `energy`, `instrumentalness`, and visual styling fields. The
    user-facing label for `energy` is Arousal.
-3. The validation protocol starts with Random Shuffle and then Vibe Shuffle.
-4. Expression samples are estimated locally with MediaPipe Face Landmarker
+3. The participant selects preferred instrumental genres in a music taste
+   baseline screen.
+4. The validation protocol starts with Random Shuffle and then a hidden
+   genre-constrained Vibe block.
+5. Expression samples are estimated locally with MediaPipe Face Landmarker
    blendshapes.
-5. Optional ECG/heart-rate samples are read locally through Web Bluetooth Heart
+6. Optional ECG/heart-rate samples are read locally through Web Bluetooth Heart
    Rate Service notifications.
-6. Random Shuffle ignores expression and physiology state for track selection.
-7. At the end of each listening window, the app averages expression samples and
+7. Random Shuffle ignores expression, physiology, and selected genre state for
+   track selection.
+8. At the end of each listening window, the app averages expression samples and
    summarizes HR/HRV samples from that window.
-8. Vibe Shuffle ranks the next track by fused face Valence plus ECG/HRV arousal
-   when physiology quality is good; otherwise it falls back to face-only window
-   selection.
-9. After each listening window, the participant must submit a 1-4 rating.
-10. At protocol completion, ratings are exported as CSV.
+9. The hidden Vibe block first filters to the participant-selected genres, then
+   ranks by fused face Valence plus ECG/HRV arousal when physiology quality is
+   good; otherwise it falls back to face-only window selection.
+10. After each listening window, the participant must submit a 1-4 rating.
+11. At protocol completion, ratings are exported as CSV.
 
 ## Expression Detection
 
@@ -88,6 +95,9 @@ drop.
 
 There are three playback paths:
 
+- YouTube embedded playback: the current Kaggle/Spotify catalog stores a
+  resolved YouTube video id and embed URL for each track. The visible player
+  iframe is controlled by the same `Start music` / `Pause` button.
 - Direct MP3/stream playback: Jamendo or fallback instrumental URLs in the
   catalog.
 - Spotify Web Playback SDK: full-track playback for Spotify catalog entries
@@ -97,8 +107,11 @@ There are three playback paths:
 
 ## Catalog Generation
 
-Catalog generators run at build time, not in the browser. The current curated
+Catalog generators run at build time, not in the browser. The current public
 path writes `src/data/musicCatalog.json` and
-`data/curated_instrumental_catalog.csv`. Jamendo and Spotify paths can also
-write `src/data/musicCatalog.json`. Secrets are provided through environment
+`data/kaggle_spotify_youtube_catalog.csv`. It uses the Spotify Tracks Dataset
+mirror, filters for high instrumental character, classifies quadrants from
+Valence and `energy`, and resolves one YouTube embed per track. Jamendo,
+Internet Archive, curated fallback, and Spotify paths can also write
+`src/data/musicCatalog.json`. Secrets are provided through environment
 variables or an ignored `.env` file and are never committed.
