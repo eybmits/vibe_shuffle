@@ -2591,55 +2591,84 @@ export default function App() {
   useEffect(() => {
     if (!sessionStarted || ratingPromptOpen) return;
 
-    if (!isPlaying) {
-      pauseSpotify();
-      pauseDemoAudio();
-      pauseYouTubeVideo();
-      return;
-    }
-
-    if (currentSong.youtubeVideoId || currentSong.youtubeEmbedUrl) {
-      pauseSpotify();
-      pauseDemoAudio();
-      setPlaybackNotice("YouTube video is embedded for this track.");
-      window.setTimeout(playYouTubeVideo, 250);
-      return;
-    }
-
-    if (catalogUsesSpotifyEmbed && getSpotifyTrackUri(currentSong)) {
-      pauseSpotify();
-      pauseDemoAudio();
-      pauseYouTubeVideo();
-      setPlaybackNotice(
-        "Starting embedded Spotify playback. If autoplay is blocked, press play in the player.",
-      );
-      return;
-    }
-
-    if (!currentSong.spotifyUri) {
-      playDemoSong(currentSong).then((played) => {
-        setPlaybackNotice(
-          played
-            ? currentSong.audioUrl
-              ? "Curated instrumental track is playing."
-              : "Demo audio is generated locally until Spotify tracks are imported."
-            : "Demo audio could not start in this browser.",
-        );
-      });
-      return;
-    }
-
-    if (!spotifyPlayerReady) {
-      setPlaybackNotice("Waiting for Spotify playback device.");
-      return;
-    }
-
     let cancelled = false;
-    playSpotifyTrack(currentSong.spotifyUri).then((played) => {
+    const spotifyTrackUri = getSpotifyTrackUri(currentSong);
+
+    (async () => {
+      if (!isPlaying) {
+        pauseSpotify();
+        pauseDemoAudio();
+        pauseYouTubeVideo();
+        return;
+      }
+
+      if (currentSong.youtubeVideoId || currentSong.youtubeEmbedUrl) {
+        pauseSpotify();
+        pauseDemoAudio();
+        setPlaybackNotice("YouTube video is embedded for this track.");
+        window.setTimeout(playYouTubeVideo, 250);
+        return;
+      }
+
+      if (catalogUsesSpotifyEmbed && spotifyTrackUri) {
+        pauseSpotify();
+        pauseDemoAudio();
+        pauseYouTubeVideo();
+
+        if (spotifyPlayerReady) {
+          const playedBySdk = await playSpotifyTrack(spotifyTrackUri);
+          if (!cancelled && playedBySdk) {
+            setPlaybackNotice("");
+            return;
+          }
+        }
+
+        if (currentSong.audioUrl) {
+          const started = await playDemoSong(currentSong);
+          if (!cancelled) {
+            setPlaybackNotice(
+              started
+                ? "Playing Spotify track preview audio."
+                : "Browser blocked preview playback. Press play in the embedded player.",
+            );
+          }
+          return;
+        }
+
+        if (!cancelled) {
+          setPlaybackNotice(
+            spotifyPlayerReady
+              ? "Could not start this track. Press play in the embedded Spotify player."
+              : "Spotify playback needs Premium to start here. Press play in the embedded player.",
+          );
+        }
+        return;
+      }
+
+      if (!currentSong.spotifyUri) {
+        const played = await playDemoSong(currentSong);
+        if (!cancelled) {
+          setPlaybackNotice(
+            played
+              ? currentSong.audioUrl
+                ? "Curated instrumental track is playing."
+                : "Demo audio is generated locally until Spotify tracks are imported."
+              : "Demo audio could not start in this browser.",
+          );
+        }
+        return;
+      }
+
+      if (!spotifyPlayerReady) {
+        setPlaybackNotice("Waiting for Spotify playback device.");
+        return;
+      }
+
+      const played = await playSpotifyTrack(currentSong.spotifyUri);
       if (!cancelled) {
         setPlaybackNotice(played ? "" : "Spotify could not start this track.");
       }
-    });
+    })();
 
     return () => {
       cancelled = true;
