@@ -28,10 +28,20 @@ export default {
           "0%": { transform: "translateX(-18%)" },
           "100%": { transform: "translateX(18%)" },
         },
+        aurora: {
+          "0%, 100%": { transform: "translate(0, 0) scale(1)" },
+          "50%": { transform: "translate(60px, 40px) scale(1.15)" },
+        },
+        "aurora-reverse": {
+          "0%, 100%": { transform: "translate(0, 0) scale(1.1)" },
+          "50%": { transform: "translate(-70px, -30px) scale(0.95)" },
+        },
       },
       animation: {
         "soft-pulse": "soft-pulse 3s ease-in-out infinite",
         sweep: "sweep 7s ease-in-out infinite alternate",
+        aurora: "aurora 20s ease-in-out infinite",
+        "aurora-slow": "aurora-reverse 30s ease-in-out infinite",
       },
     },
   },

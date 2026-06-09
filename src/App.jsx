@@ -6,23 +6,17 @@ import {
   CheckCircle2,
   Clock3,
   Download,
-  Gauge,
-  Headphones,
   HeartPulse,
-  ListMusic,
-  Lock,
+  Loader2,
   Music2,
   Pause,
   Play,
-  Radio,
   RotateCcw,
   ShieldCheck,
   SkipForward,
   Sparkles,
   Waves,
-  Youtube,
 } from "lucide-react";
-import musicCatalog from "./data/musicCatalog.json";
 import {
   FACE_SAMPLE_INTERVAL_MS,
   createExpressionTrackerState,
@@ -38,15 +32,23 @@ import {
   parseHeartRateMeasurement,
   summarizePhysiologyMeasurements,
 } from "./physiologyModel.js";
+import {
+  EMOTION_QUADRANTS,
+  fetchUserLibrary,
+  loadFeatureLookup,
+  matchTracksToFeatures,
+} from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 30;
+const MIN_MATCHED_TRACKS = 10;
 const MEDIAPIPE_VERSION = "0.10.35";
 
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
 const SPOTIFY_REDIRECT_URI =
   import.meta.env.VITE_SPOTIFY_REDIRECT_URI ??
   (typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "");
+const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v2";
 
 const RATING_LABELS = {
   1: "Not at all",
@@ -78,138 +80,15 @@ const RATING_OPTIONS = [
   },
 ];
 
-const GENRE_VIBE_MODE = "genre_vibe";
-const PROTOCOL_BLOCKS = [{ mode: "random" }, { mode: GENRE_VIBE_MODE }];
+const PROTOCOL_BLOCKS = [{ mode: "random" }, { mode: "vibe" }];
 
-const SESSION_MODES = ["Deep Work", "Recharge", "Destress", "Unwind"];
-
-const EMOTION_QUADRANTS = {
-  happy: {
-    label: "Happy",
-    tag: "happy",
-    accent: "#22c55e",
-    valence: 0.82,
-    energy: 0.78,
-    description: "High valence, high arousal",
-  },
-  relaxed: {
-    label: "Relaxed",
-    tag: "relaxed",
-    accent: "#14b8a6",
-    valence: 0.72,
-    energy: 0.28,
-    description: "High valence, low arousal",
-  },
-  tense: {
-    label: "Tense",
-    tag: "tense",
-    accent: "#f97316",
-    valence: 0.28,
-    energy: 0.74,
-    description: "Low valence, high arousal",
-  },
-  sad_low: {
-    label: "Sad-low",
-    tag: "sad_low",
-    accent: "#818cf8",
-    valence: 0.3,
-    energy: 0.26,
-    description: "Low valence, low arousal",
-  },
-};
-
-const FALLBACK_PALETTE = ["#f8fafc", "#dbeafe", "#0f766e"];
-const MAIN_PANEL_CLASS =
-  "h-[430px] overflow-hidden rounded-lg border border-white/10 shadow-[0_22px_70px_rgba(0,0,0,0.28)] sm:h-[460px] xl:h-full";
+const GLASS_CARD =
+  "rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl";
+const ACCENT_GRADIENT = "bg-gradient-to-r from-cyan-400 to-violet-500";
+const ACCENT_TEXT_GRADIENT =
+  "bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-400 bg-clip-text text-transparent";
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
-
-function getCatalogTracks() {
-  if (Array.isArray(musicCatalog)) return musicCatalog;
-  return musicCatalog.tracks ?? [];
-}
-
-function getCatalogGenreOptions(songs) {
-  const counts = songs.reduce((items, song) => {
-    if (!song.trackGenre) return items;
-    const current = items.get(song.trackGenre) ?? {
-      count: 0,
-      genre: song.trackGenre,
-      label: song.trackGenreLabel ?? song.trackGenre,
-      samples: [],
-    };
-    current.count += 1;
-    if (current.samples.length < 3) current.samples.push(song.title);
-    items.set(song.trackGenre, current);
-    return items;
-  }, new Map());
-
-  const configuredOptions = Array.isArray(musicCatalog) ? [] : (musicCatalog.genreOptions ?? []);
-  const orderedOptions = configuredOptions
-    .map((option) => {
-      const fromTracks = counts.get(option.genre);
-      if (!fromTracks) return null;
-      return {
-        ...fromTracks,
-        label: option.label ?? fromTracks.label,
-      };
-    })
-    .filter(Boolean);
-
-  if (orderedOptions.length) return orderedOptions;
-  return Array.from(counts.values()).sort((a, b) => a.label.localeCompare(b.label));
-}
-
-function normalizeSong(song, index) {
-  const quadrant =
-    song.quadrant in EMOTION_QUADRANTS
-      ? song.quadrant
-      : quadrantFromAxes(song.valence, song.energy);
-  const style = EMOTION_QUADRANTS[quadrant] ?? EMOTION_QUADRANTS.relaxed;
-
-  return {
-    id: song.id ?? song.spotifyId ?? `track-${index}`,
-    jamendoId: song.jamendoId ?? null,
-    spotifyId: song.spotifyId ?? null,
-    spotifyUri: song.spotifyUri ?? null,
-    title: song.title ?? "Untitled track",
-    artist: song.artist ?? "Unknown artist",
-    album: song.album ?? "",
-    trackGenre: song.trackGenre ?? null,
-    trackGenreLabel: song.trackGenreLabel ?? song.trackGenre ?? null,
-    popularity: Number(song.popularity ?? 0),
-    albumImageUrl: song.albumImageUrl ?? null,
-    audioUrl: song.audioUrl ?? song.previewUrl ?? null,
-    downloadUrl: song.downloadUrl ?? null,
-    externalUrl: song.externalUrl ?? null,
-    licenseUrl: song.licenseUrl ?? null,
-    durationMs: song.durationMs ?? null,
-    valence: Number(song.valence ?? style.valence),
-    energy: Number(song.energy ?? style.energy),
-    instrumentalness: Number(song.instrumentalness ?? 0),
-    speechiness: Number(song.speechiness ?? 0),
-    danceability: Number(song.danceability ?? 0),
-    tempo: Number(song.tempo ?? 0),
-    quadrant,
-    accent: song.accent ?? style.accent,
-    palette: song.palette ?? FALLBACK_PALETTE,
-    analysisConfidence: Number(song.analysisConfidence ?? 0),
-    categorySource: song.categorySource ?? null,
-    source: song.source ?? null,
-    youtubeEmbedUrl: song.youtubeEmbedUrl ?? null,
-    youtubeQuery: song.youtubeQuery ?? null,
-    youtubeSearchUrl: song.youtubeSearchUrl ?? null,
-    youtubeUrl: song.youtubeUrl ?? null,
-    youtubeVideoId: song.youtubeVideoId ?? null,
-  };
-}
-
-function quadrantFromAxes(valence, energy) {
-  if (valence >= 0.5 && energy >= 0.5) return "happy";
-  if (valence >= 0.5 && energy < 0.5) return "relaxed";
-  if (valence < 0.5 && energy >= 0.5) return "tense";
-  return "sad_low";
-}
 
 function createProtocolId() {
   const compactTimestamp = new Date()
@@ -338,7 +217,7 @@ function createSmoothPath(points) {
     .join(" ");
 }
 
-function buildHeartRateCurve(samples, width = 320, height = 112) {
+function buildHeartRateCurve(samples, width = 320, height = 96) {
   const heartRates = samples
     .map((sample) => Number(sample.heartRateBpm))
     .filter((value) => Number.isFinite(value));
@@ -365,43 +244,6 @@ function buildHeartRateCurve(samples, width = 320, height = 112) {
   };
 }
 
-function ProgressRing({ className = "", value, label }) {
-  const radius = 46;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - clamp(value, 0, 100) / 100);
-
-  return (
-    <div className={`relative size-28 ${className}`}>
-      <svg aria-hidden="true" className="size-full -rotate-90" viewBox="0 0 112 112">
-        <circle cx="56" cy="56" fill="none" r={radius} stroke="rgba(255,255,255,0.12)" strokeWidth="9" />
-        <circle
-          cx="56"
-          cy="56"
-          fill="none"
-          r={radius}
-          stroke="url(#sessionProgressGradient)"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          strokeWidth="9"
-        />
-        <defs>
-          <linearGradient id="sessionProgressGradient" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#14b8a6" />
-            <stop offset="100%" stopColor="#f97316" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-xl font-semibold tracking-tight text-white">{Math.round(value)}%</span>
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8ca3b8]">
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function deterministicScore(id, seed) {
   let hash = seed * 97;
   for (let i = 0; i < id.length; i += 1) {
@@ -410,16 +252,11 @@ function deterministicScore(id, seed) {
   return hash / 9973;
 }
 
-function rankSongs(songs, mode, mood, currentSongId, seed, recentIds, selectedGenres = []) {
+function rankSongs(songs, mode, mood, currentSongId, seed, recentIds) {
   const available = songs.filter((song) => song.id !== currentSongId);
-  const selectedGenreSet = new Set(selectedGenres);
-  const genrePool = selectedGenreSet.size
-    ? available.filter((song) => selectedGenreSet.has(song.trackGenre))
-    : available;
-  const basePool = genrePool.length ? genrePool : available;
-  const vibePool = basePool.filter((song) => song.quadrant === mood.tag);
-  const isAdaptiveMode = mode === GENRE_VIBE_MODE || mode === "vibe";
-  const pool = isAdaptiveMode && vibePool.length ? vibePool : basePool;
+  const vibePool = available.filter((song) => song.quadrant === mood.tag);
+  const isAdaptiveMode = mode === "vibe";
+  const pool = isAdaptiveMode && vibePool.length ? vibePool : available;
 
   return pool
     .map((song) => {
@@ -493,7 +330,7 @@ async function createCodeChallenge(verifier) {
 
 function readStoredToken() {
   try {
-    const raw = localStorage.getItem("vibe_shuffle_spotify_token");
+    const raw = localStorage.getItem(SPOTIFY_TOKEN_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -501,7 +338,7 @@ function readStoredToken() {
 }
 
 function writeStoredToken(tokenPayload) {
-  localStorage.setItem("vibe_shuffle_spotify_token", JSON.stringify(tokenPayload));
+  localStorage.setItem(SPOTIFY_TOKEN_STORAGE_KEY, JSON.stringify(tokenPayload));
 }
 
 function useSpotifyAuth() {
@@ -544,7 +381,7 @@ function useSpotifyAuth() {
     if (!response.ok) {
       setError("Spotify session expired. Please connect again.");
       setStatus("idle");
-      localStorage.removeItem("vibe_shuffle_spotify_token");
+      localStorage.removeItem(SPOTIFY_TOKEN_STORAGE_KEY);
       setToken(null);
       return null;
     }
@@ -581,6 +418,9 @@ function useSpotifyAuth() {
         "user-read-private",
         "user-read-playback-state",
         "user-modify-playback-state",
+        "user-library-read",
+        "playlist-read-private",
+        "playlist-read-collaborative",
       ].join(" "),
       redirect_uri: SPOTIFY_REDIRECT_URI,
       state,
@@ -592,7 +432,7 @@ function useSpotifyAuth() {
   }, []);
 
   const disconnect = useCallback(() => {
-    localStorage.removeItem("vibe_shuffle_spotify_token");
+    localStorage.removeItem(SPOTIFY_TOKEN_STORAGE_KEY);
     setToken(null);
     setStatus("idle");
   }, []);
@@ -887,178 +727,69 @@ function useSpotifyPlayer(accessToken, ensureToken) {
   };
 }
 
-function useDemoAudio() {
-  const contextRef = useRef(null);
-  const nodesRef = useRef(null);
-  const audioRef = useRef(null);
-  const [error, setError] = useState("");
+function useSpotifyLibrary(authenticated, ensureToken) {
+  const [state, setState] = useState({
+    error: "",
+    matchedTracks: [],
+    playlistCount: 0,
+    status: "idle",
+    totalCount: 0,
+  });
+  const startedRef = useRef(false);
 
-  const ensureContext = useCallback(async () => {
-    const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
-    if (!AudioContextClass) {
-      setError("This browser does not support Web Audio playback.");
-      return null;
-    }
+  useEffect(() => {
+    if (!authenticated || startedRef.current) return;
+    startedRef.current = true;
 
-    if (!contextRef.current) {
-      contextRef.current = new AudioContextClass();
-    }
+    let cancelled = false;
 
-    if (contextRef.current.state === "suspended") {
-      await contextRef.current.resume();
-    }
-
-    return contextRef.current;
-  }, []);
-
-  const stop = useCallback((fadeSeconds = 0.16) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current.load();
-      audioRef.current = null;
-    }
-
-    const context = contextRef.current;
-    const nodes = nodesRef.current;
-    if (!context || !nodes) return;
-
-    const now = context.currentTime;
-    nodes.master.gain.cancelScheduledValues(now);
-    nodes.master.gain.setValueAtTime(nodes.master.gain.value, now);
-    nodes.master.gain.linearRampToValueAtTime(0, now + fadeSeconds);
-    nodes.oscillators.forEach((oscillator) => {
+    (async () => {
       try {
-        oscillator.stop(now + fadeSeconds + 0.04);
-      } catch {
-        // Oscillators can only be stopped once.
+        setState((current) => ({ ...current, error: "", status: "loading" }));
+
+        const [lookup, tracks] = await Promise.all([
+          loadFeatureLookup(),
+          fetchUserLibrary(ensureToken, ({ trackCount, playlistCount }) => {
+            if (cancelled) return;
+            setState((current) => ({
+              ...current,
+              playlistCount,
+              totalCount: trackCount,
+            }));
+          }),
+        ]);
+        if (cancelled) return;
+
+        const matchedTracks = matchTracksToFeatures(tracks, lookup);
+        setState({
+          error: "",
+          matchedTracks,
+          playlistCount: 0,
+          status: "ready",
+          totalCount: tracks.length,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        startedRef.current = false;
+        setState((current) => ({
+          ...current,
+          error: error.message ?? "Your Spotify library could not be loaded.",
+          status: "error",
+        }));
       }
-    });
-    nodesRef.current = null;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, ensureToken]);
+
+  const retry = useCallback(() => {
+    startedRef.current = false;
+    setState((current) => ({ ...current, error: "", status: "idle" }));
   }, []);
 
-  const playSong = useCallback(
-    async (song) => {
-      if (song.audioUrl) {
-        stop(0);
-
-        const audio = new Audio(song.audioUrl);
-        audio.loop = true;
-        audio.preload = "auto";
-        audio.volume = 0.78;
-        audioRef.current = audio;
-
-        try {
-          await audio.play();
-          setError("");
-          return true;
-        } catch {
-          audioRef.current = null;
-          setError("Browser blocked the instrumental audio. Press play once to resume it.");
-          return false;
-        }
-      }
-
-      const context = await ensureContext();
-      if (!context) return false;
-
-      stop(0.08);
-
-      const now = context.currentTime;
-      const baseFrequency = 138 + song.valence * 140 + song.energy * 130;
-      const interval = song.valence >= 0.5 ? 1.5 : 1.2;
-      const master = context.createGain();
-      const filter = context.createBiquadFilter();
-      const primary = context.createOscillator();
-      const harmony = context.createOscillator();
-      const low = context.createOscillator();
-      const primaryGain = context.createGain();
-      const harmonyGain = context.createGain();
-      const lowGain = context.createGain();
-      const lfo = context.createOscillator();
-      const lfoGain = context.createGain();
-
-      filter.type = song.energy >= 0.5 ? "bandpass" : "lowpass";
-      filter.frequency.value = 520 + song.energy * 1800;
-      filter.Q.value = 0.8 + song.instrumentalness * 1.6;
-
-      primary.type = song.energy >= 0.62 ? "triangle" : "sine";
-      harmony.type = song.quadrant === "tense" ? "sawtooth" : "sine";
-      low.type = "sine";
-      primary.frequency.value = baseFrequency;
-      harmony.frequency.value = baseFrequency * interval;
-      low.frequency.value = baseFrequency / 2;
-
-      primaryGain.gain.value = 0.045 + song.energy * 0.03;
-      harmonyGain.gain.value = 0.026 + song.valence * 0.024;
-      lowGain.gain.value = 0.025;
-      master.gain.value = 0;
-
-      lfo.frequency.value = 0.12 + song.energy * 0.62;
-      lfoGain.gain.value = 18 + song.energy * 48;
-      lfo.connect(lfoGain).connect(filter.frequency);
-
-      primary.connect(primaryGain).connect(filter);
-      harmony.connect(harmonyGain).connect(filter);
-      low.connect(lowGain).connect(filter);
-      filter.connect(master).connect(context.destination);
-
-      [primary, harmony, low, lfo].forEach((oscillator) => oscillator.start(now));
-      master.gain.linearRampToValueAtTime(0.42, now + 0.6);
-
-      nodesRef.current = {
-        master,
-        oscillators: [primary, harmony, low, lfo],
-      };
-      setError("");
-      return true;
-    },
-    [ensureContext, stop],
-  );
-
-  const pause = useCallback(async () => {
-    try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        return;
-      }
-
-      await contextRef.current?.suspend();
-    } catch {
-      setError("Demo playback could not be paused.");
-    }
-  }, []);
-
-  const resume = useCallback(async () => {
-    try {
-      if (audioRef.current) {
-        await audioRef.current.play();
-        return true;
-      }
-
-      await contextRef.current?.resume();
-      return true;
-    } catch {
-      setError("Demo playback could not be resumed.");
-      return false;
-    }
-  }, []);
-
-  useEffect(
-    () => () => {
-      stop(0);
-      contextRef.current?.close?.();
-    },
-    [stop],
-  );
-
-  return {
-    error,
-    pause,
-    playSong,
-    resume,
-    stop,
-  };
+  return { ...state, retry };
 }
 
 function cameraErrorMessage(error) {
@@ -1172,6 +903,16 @@ function useFaceExpression() {
     sampleId: 0,
     status: "idle",
   });
+
+  // The preview <video> remounts between the setup and session screens, so the
+  // ref re-attaches the active stream whenever a new node appears.
+  const setVideoRef = useCallback((node) => {
+    videoRef.current = node;
+    if (node && streamRef.current) {
+      node.srcObject = streamRef.current;
+      node.play().catch(() => {});
+    }
+  }, []);
 
   const detect = useCallback(() => {
     const video = videoRef.current;
@@ -1296,8 +1037,8 @@ function useFaceExpression() {
 
   return {
     ...state,
+    setVideoRef,
     start,
-    videoRef,
   };
 }
 
@@ -1593,258 +1334,100 @@ function usePhysiologySensor() {
   };
 }
 
+function AuroraBackground() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="absolute -left-48 -top-48 size-[560px] rounded-full bg-cyan-400/12 blur-[150px] animate-aurora" />
+      <div className="absolute -right-40 top-1/4 size-[520px] rounded-full bg-violet-500/14 blur-[150px] animate-aurora-slow" />
+      <div className="absolute -bottom-56 left-1/3 size-[620px] rounded-full bg-indigo-500/10 blur-[160px] animate-aurora" />
+    </div>
+  );
+}
+
+function BrandMark({ compact = false }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className={`flex shrink-0 items-center justify-center rounded-2xl ${ACCENT_GRADIENT} text-[#05060f] shadow-[0_0_40px_rgba(34,211,238,0.3)] ${
+          compact ? "size-9" : "size-11"
+        }`}
+      >
+        <Waves className={compact ? "size-4" : "size-5"} />
+      </div>
+      <div>
+        <div className={`font-semibold tracking-tight text-white ${compact ? "text-base" : "text-lg"}`}>
+          Vibe Shuffle
+        </div>
+        {!compact ? (
+          <p className="text-sm text-slate-400">Music that adapts to your state of mind.</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function SectionLabel({ children, icon: Icon }) {
   return (
-    <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#8ca3b8]">
-      <span className="flex size-7 items-center justify-center rounded-full bg-[#10283a] text-[#32e6c8]">
-        <Icon className="size-3.5" />
-      </span>
+    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+      <Icon className="size-3.5 text-cyan-300" />
       {children}
     </div>
   );
 }
 
-function MoodMap({ mood }) {
-  const x = clamp(mood.valence * 100, 5, 95);
-  const y = clamp(100 - mood.energy * 100, 5, 95);
-  const axisLabelClass =
-    "text-[9px] font-semibold uppercase tracking-[0.13em] text-[#9db0c4] sm:text-[10px]";
-  const quadrantLabelClass =
-    "pointer-events-none absolute text-[9px] font-bold uppercase tracking-[0.12em] text-white/58 sm:text-[10px]";
-
+function PrimaryButton({ children, className = "", ...props }) {
   return (
-    <div className="w-full rounded-lg border border-white/10 bg-white/5 p-3 sm:p-4">
-      <div className={`${axisLabelClass} mb-2 text-center`}>High arousal</div>
-      <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 sm:grid-cols-[3.35rem_minmax(0,1fr)_3.35rem]">
-        <div className={`${axisLabelClass} text-right leading-4`}>Low valence</div>
-        <div className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded-lg border border-white/14 bg-[#071827] shadow-inner sm:max-w-[230px] xl:max-w-[180px]">
-          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-            <div className="border-b border-r border-white/12 bg-[linear-gradient(135deg,rgba(249,115,22,0.17),rgba(129,140,248,0.08))]" />
-            <div className="border-b border-white/12 bg-[linear-gradient(135deg,rgba(20,184,166,0.13),rgba(50,230,200,0.20))]" />
-            <div className="border-r border-white/12 bg-[linear-gradient(135deg,rgba(129,140,248,0.16),rgba(248,113,113,0.08))]" />
-            <div className="bg-[linear-gradient(135deg,rgba(20,184,166,0.14),rgba(45,212,191,0.09))]" />
-          </div>
-          <div className="absolute inset-0 rounded-lg ring-1 ring-inset ring-white/10" />
-          <div className="absolute left-0 right-0 top-1/2 h-px bg-white/42" />
-          <div className="absolute bottom-0 top-0 left-1/2 w-px bg-white/42" />
-          <span className={`${quadrantLabelClass} left-3 top-3 text-[#fbbf24]/72`}>
-            Tense
-          </span>
-          <span className={`${quadrantLabelClass} right-3 top-3 text-[#32e6c8]/76`}>
-            Happy
-          </span>
-          <span className={`${quadrantLabelClass} bottom-3 left-3 text-[#a5b4fc]/76`}>
-            Sad low
-          </span>
-          <span className={`${quadrantLabelClass} bottom-3 right-3 text-[#7dd3fc]/76`}>
-            Relaxed
-          </span>
-          <div
-            className="absolute size-5 rounded-full border-[4px] border-[#071827] shadow-[0_0_28px_currentColor] transition-all duration-500"
-            style={{
-              background: mood.accent,
-              color: mood.accent,
-              left: `${x}%`,
-              top: `${y}%`,
-              transform: "translate(-50%, -50%)",
-            }}
-          />
-        </div>
-        <div className={`${axisLabelClass} leading-4`}>High valence</div>
-      </div>
-      <div className={`${axisLabelClass} mt-2 text-center`}>Low arousal</div>
-    </div>
-  );
-}
-
-function buildYouTubeEmbedSrc(song) {
-  if (!song.youtubeVideoId && !song.youtubeEmbedUrl) return null;
-  const baseUrl =
-    song.youtubeEmbedUrl ??
-    `https://www.youtube.com/embed/${song.youtubeVideoId}?enablejsapi=1&rel=0&modestbranding=1&playsinline=1`;
-  const url = new URL(baseUrl);
-  url.searchParams.set("enablejsapi", "1");
-  url.searchParams.set("modestbranding", "1");
-  url.searchParams.set("playsinline", "1");
-  url.searchParams.set("rel", "0");
-  if (typeof window !== "undefined") url.searchParams.set("origin", window.location.origin);
-  return url.toString();
-}
-
-function getSpotifyTrackUri(song) {
-  if (song.spotifyUri) return song.spotifyUri;
-  if (song.spotifyId) return `spotify:track:${song.spotifyId}`;
-  return null;
-}
-
-function getTrackPlaybackMode(song, catalogUsesSpotifyEmbed = false) {
-  if (!song) return "none";
-  if (song.youtubeVideoId || song.youtubeEmbedUrl) return "youtube";
-  if (song.audioUrl) return "audio";
-  const spotifyTrackUri = getSpotifyTrackUri(song);
-  if (spotifyTrackUri) return catalogUsesSpotifyEmbed ? "spotify" : "demo";
-  return "demo";
-}
-
-function YouTubeMedia({ isPlaying, onReadyPlay, song, youtubeFrameRef }) {
-  const src = buildYouTubeEmbedSrc(song);
-  const mediaClass =
-    "relative mx-auto aspect-video w-full max-w-[min(64vw,260px)] overflow-hidden rounded-lg border border-white/14 bg-[#020712] shadow-[0_24px_70px_rgba(0,0,0,0.38)] sm:max-w-[300px] md:max-w-[320px] lg:max-w-[260px] xl:max-w-[210px]";
-
-  if (!src) return null;
-
-  return (
-    <div className={mediaClass}>
-      <iframe
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-        allowFullScreen
-        className="absolute inset-0 h-full w-full"
-        onLoad={() => {
-          if (isPlaying) window.setTimeout(onReadyPlay, 350);
-        }}
-        ref={youtubeFrameRef}
-        src={src}
-        title={`${song.title} on YouTube`}
-      />
-      <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-[#020712]/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-        YouTube
-      </div>
-    </div>
-  );
-}
-
-function CoverArt({ isPlaying, song }) {
-  const coverClass =
-    "relative mx-auto aspect-square w-full max-w-[min(62vw,210px)] overflow-hidden rounded-lg border border-white/14 shadow-[0_24px_70px_rgba(0,0,0,0.38)] sm:max-w-[240px] md:max-w-[260px] lg:max-w-[220px] xl:max-w-[168px]";
-
-  if (song.albumImageUrl) {
-    return (
-      <div className={coverClass}>
-        <img alt="" className="h-full w-full object-cover" src={song.albumImageUrl} />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(2,7,18,0.34))]" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={coverClass}
-      style={{
-        background: `linear-gradient(135deg, ${song.palette[0]} 0%, ${song.palette[1]} 52%, ${song.palette[2]} 100%)`,
-      }}
+    <button
+      className={`inline-flex items-center justify-center gap-2 rounded-full ${ACCENT_GRADIENT} px-7 py-3.5 text-sm font-semibold text-[#05060f] shadow-[0_16px_50px_rgba(34,211,238,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_60px_rgba(139,92,246,0.35)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none disabled:hover:translate-y-0 ${className}`}
+      type="button"
+      {...props}
     >
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06)_42%,rgba(2,7,18,0.28))]" />
-      <div className="absolute -left-1/4 top-0 h-full w-2/3 rotate-12 bg-[#32e6c8]/24 blur-2xl animate-sweep" />
-      <div className="absolute inset-x-8 bottom-9 xl:inset-x-6 xl:bottom-6">
-        <div className="flex items-end gap-2">
-          {[48, 82, 58, 104, 46, 86, 62].map((height, index) => (
-            <span
-              className="w-full rounded-full bg-white/70 shadow-sm"
-              key={`${song.id}-${height}`}
-              style={{
-                animation: isPlaying
-                  ? `soft-pulse ${2.2 + index * 0.16}s ease-in-out infinite`
-                  : "none",
-                height: `${height}px`,
-                opacity: isPlaying ? 0.96 : 0.52,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+      {children}
+    </button>
   );
 }
 
-function MediaStage({
-  isPlaying,
-  onReadyPlay,
-  song,
-  youtubeFrameRef,
-}) {
-  if (song.youtubeVideoId || song.youtubeEmbedUrl) {
-    return (
-      <YouTubeMedia
-        isPlaying={isPlaying}
-        onReadyPlay={onReadyPlay}
-        song={song}
-        youtubeFrameRef={youtubeFrameRef}
+function GhostButton({ children, className = "", ...props }) {
+  return (
+    <button
+      className={`inline-flex items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-5 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/40 hover:bg-white/[0.09] hover:text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:text-white/30 ${className}`}
+      type="button"
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MoodMap({ mood }) {
+  const x = clamp(mood.valence * 100, 6, 94);
+  const y = clamp(100 - mood.energy * 100, 6, 94);
+  const quadrantLabelClass =
+    "pointer-events-none absolute text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40";
+
+  return (
+    <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-[#070a18]">
+      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+        <div className="border-b border-r border-white/8 bg-[radial-gradient(circle_at_30%_30%,rgba(251,146,60,0.10),transparent_70%)]" />
+        <div className="border-b border-white/8 bg-[radial-gradient(circle_at_70%_30%,rgba(52,211,153,0.10),transparent_70%)]" />
+        <div className="border-r border-white/8 bg-[radial-gradient(circle_at_30%_70%,rgba(167,139,250,0.12),transparent_70%)]" />
+        <div className="bg-[radial-gradient(circle_at_70%_70%,rgba(34,211,238,0.10),transparent_70%)]" />
+      </div>
+      <span className={`${quadrantLabelClass} left-3 top-3`}>Tense</span>
+      <span className={`${quadrantLabelClass} right-3 top-3`}>Happy</span>
+      <span className={`${quadrantLabelClass} bottom-3 left-3`}>Sad low</span>
+      <span className={`${quadrantLabelClass} bottom-3 right-3`}>Relaxed</span>
+      <div
+        className="absolute size-4 rounded-full border-2 border-[#05060f] shadow-[0_0_24px_currentColor] transition-all duration-700"
+        style={{
+          background: mood.accent,
+          color: mood.accent,
+          left: `${x}%`,
+          top: `${y}%`,
+          transform: "translate(-50%, -50%)",
+        }}
       />
-    );
-  }
-
-  return <CoverArt isPlaying={isPlaying} song={song} />;
-}
-
-function SessionWaveform({ isPlaying, song }) {
-  const heights = [34, 62, 44, 86, 54, 104, 66, 48, 78, 52, 96, 42, 70, 58, 88, 46];
-
-  return (
-    <div className="flex h-14 items-end justify-center gap-1.5 rounded-lg border border-white/12 bg-white/6 px-3 py-3 sm:h-20 sm:gap-2 sm:px-4 lg:h-20 xl:h-14 xl:px-3 xl:py-2">
-      {heights.map((height, index) => (
-        <span
-          className="w-full max-w-3 rounded-full bg-[#ddf7ff]/70 shadow-sm sm:max-w-4"
-          key={`${song.id}-session-${height}-${index}`}
-          style={{
-            animation: isPlaying
-              ? `soft-pulse ${1.9 + index * 0.08}s ease-in-out infinite`
-              : "none",
-            height: `${height}%`,
-            opacity: isPlaying ? 0.96 : 0.5,
-          }}
-        />
-      ))}
     </div>
-  );
-}
-
-function CameraPanel({ face }) {
-  const statusLabel =
-    face.status === "ready"
-      ? "Camera ready"
-      : face.status === "searching"
-        ? "Looking for face"
-        : face.status === "loading"
-          ? "Starting camera"
-          : face.status === "error"
-            ? "Camera blocked"
-            : "Camera not started";
-
-  return (
-    <section className={`${MAIN_PANEL_CLASS} flex flex-col bg-[#071827] p-4 sm:p-5 xl:p-4`}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <SectionLabel icon={Camera}>Expression signal</SectionLabel>
-        <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
-          {statusLabel}
-        </span>
-      </div>
-      <div className="min-h-[180px] flex-1 overflow-hidden rounded-lg bg-slate-950 shadow-inner">
-        <video
-          aria-label="Local camera preview"
-          className="h-full w-full scale-x-[-1] object-cover opacity-90"
-          muted
-          playsInline
-          ref={face.videoRef}
-        />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:gap-3">
-        <div className="rounded-lg bg-white/7 p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            Expression
-          </div>
-          <div className="mt-1 text-xl font-semibold text-white">{face.label}</div>
-        </div>
-        <div className="rounded-lg bg-white/7 p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            Confidence
-          </div>
-          <div className="mt-1 text-xl font-semibold text-white">
-            {Math.round(face.confidence * 100)}%
-          </div>
-        </div>
-      </div>
-      {face.error ? <p className="mt-3 text-sm text-rose-300">{face.error}</p> : null}
-    </section>
   );
 }
 
@@ -1852,326 +1435,126 @@ function HeartRateCurve({ physiology, summary }) {
   const samples = physiology.heartRateHistory ?? [];
   const curve = buildHeartRateCurve(samples);
   const hasLiveSamples = samples.length > 0;
-  const latestLabel = Number.isFinite(summary.hr_bpm_mean)
-    ? `${Math.round(summary.hr_bpm_mean)} bpm`
-    : "Waiting";
   const lastPoint = curve.points.at(-1);
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-white/10 bg-[linear-gradient(135deg,#082033_0%,#071827_60%,#201426_100%)] p-3 sm:p-4 xl:mt-3 xl:p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#32e6c8]">
-            Heart-rate curve
-          </div>
-          <div className="mt-1 text-xs text-[#8ca3b8]">
-            {hasLiveSamples ? `Last ${samples.length} packets` : "Waiting for live packets"}
-          </div>
-        </div>
-        <div className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold text-white shadow-sm">
-          {latestLabel}
-        </div>
-      </div>
-      <div className="relative h-28 sm:h-32 xl:h-20">
-        <svg
-          aria-hidden="true"
-          className="h-full w-full overflow-visible"
-          preserveAspectRatio="none"
-          viewBox="0 0 320 112"
-        >
-          <defs>
-            <linearGradient id="hrCurveStroke" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%" stopColor="#14b8a6" />
-              <stop offset="52%" stopColor="#22c55e" />
-              <stop offset="100%" stopColor="#f97316" />
-            </linearGradient>
-            <linearGradient id="hrCurveArea" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#14b8a6" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
-            </linearGradient>
-            <filter id="hrCurveGlow" x="-10%" y="-30%" width="120%" height="160%">
-              <feGaussianBlur stdDeviation="4" />
-            </filter>
-          </defs>
-          {[28, 56, 84].map((y) => (
-            <line key={y} stroke="#8ca3b8" strokeDasharray="4 8" strokeOpacity="0.22" x1="0" x2="320" y1={y} y2={y} />
-          ))}
-          <path d={curve.areaPath} fill="url(#hrCurveArea)" opacity={hasLiveSamples ? 1 : 0.36} />
-          <path
-            d={curve.path}
-            fill="none"
-            filter="url(#hrCurveGlow)"
-            opacity={hasLiveSamples ? 0.38 : 0.16}
-            stroke="#14b8a6"
-            strokeLinecap="round"
-            strokeWidth="7"
-          />
-          <path
-            d={curve.path}
-            fill="none"
-            opacity={hasLiveSamples ? 1 : 0.34}
-            stroke="url(#hrCurveStroke)"
-            strokeDasharray={hasLiveSamples ? "0" : "8 10"}
-            strokeLinecap="round"
-            strokeWidth="3.5"
-          />
-          {hasLiveSamples && lastPoint ? (
-            <>
-              <circle cx={lastPoint.x} cy={lastPoint.y} fill="#f97316" opacity="0.18" r="11" />
-              <circle className="animate-pulse" cx={lastPoint.x} cy={lastPoint.y} fill="#f97316" r="4.5" />
-            </>
-          ) : null}
-        </svg>
-        {!hasLiveSamples ? (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            Connect sensor
-          </div>
+    <div className="relative h-24">
+      <svg
+        aria-hidden="true"
+        className="h-full w-full overflow-visible"
+        preserveAspectRatio="none"
+        viewBox="0 0 320 96"
+      >
+        <defs>
+          <linearGradient id="hrCurveStroke" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+          <linearGradient id="hrCurveArea" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={curve.areaPath} fill="url(#hrCurveArea)" opacity={hasLiveSamples ? 1 : 0.3} />
+        <path
+          d={curve.path}
+          fill="none"
+          opacity={hasLiveSamples ? 1 : 0.3}
+          stroke="url(#hrCurveStroke)"
+          strokeDasharray={hasLiveSamples ? "0" : "7 9"}
+          strokeLinecap="round"
+          strokeWidth="2.5"
+        />
+        {hasLiveSamples && lastPoint ? (
+          <circle className="animate-pulse" cx={lastPoint.x} cy={lastPoint.y} fill="#a78bfa" r="4" />
         ) : null}
-      </div>
-      <div className="mt-2 flex justify-between text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8ca3b8]">
-        <span>Min {Math.round(curve.min)} bpm</span>
-        <span>Max {Math.round(curve.max)} bpm</span>
-      </div>
+      </svg>
+      {!hasLiveSamples ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+          {summary?.ecg_connected ? "Waiting for packets" : "No sensor"}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function PhysiologyPanel({ physiology }) {
-  const summary = physiology.currentSummary;
-  let statusLabel = "Optional";
-  if (physiology.status === "ready") {
-    if (physiology.source === "mock") {
-      statusLabel = "Demo sensor ready";
-    } else if (physiology.baseline) {
-      statusLabel = "ECG + HRV ready";
-    } else {
-      statusLabel =
-        summary.physiology_quality === "bpm_only" ? "HR only" : "Baseline not usable";
-    }
-  } else if (physiology.status === "baselining") {
-    statusLabel = `Baseline ${Math.round(physiology.baselineProgress * 100)}%`;
-  } else if (physiology.status === "connecting") {
-    statusLabel = "Connecting";
-  } else if (physiology.status === "waiting") {
-    statusLabel = "Waiting for HR";
-  } else if (physiology.status === "error") {
-    statusLabel = "Sensor unavailable";
-  }
-  const rmssdLabel = Number.isFinite(summary.rmssd_ms)
-    ? `${Math.round(summary.rmssd_ms)} ms`
-    : "No RR";
-  const arousalLabel = Number.isFinite(summary.physiology_arousal)
-    ? `${Math.round(summary.physiology_arousal * 100)}%`
-    : "Face only";
+function SignalCard({ children, label, icon, status }) {
   return (
-    <section className={`${MAIN_PANEL_CLASS} bg-[#071827] p-4 sm:p-5 xl:p-4`}>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <SectionLabel icon={HeartPulse}>Physiology signal</SectionLabel>
-        <span className="rounded-full bg-white/8 px-3 py-1 text-xs font-semibold text-[#c7d7e6]">
-          {statusLabel}
-        </span>
+    <div className={`${GLASS_CARD} flex flex-col gap-3 p-4`}>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel icon={icon}>{label}</SectionLabel>
+        {status ? (
+          <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-300">
+            {status}
+          </span>
+        ) : null}
       </div>
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            HR
-          </div>
-          <div className="mt-1 text-base font-semibold text-white sm:text-lg">
-            {summary.hr_bpm_mean ? `${Math.round(summary.hr_bpm_mean)} bpm` : "-"}
-          </div>
-        </div>
-        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            RMSSD
-          </div>
-          <div className="mt-1 text-base font-semibold text-white sm:text-lg">{rmssdLabel}</div>
-        </div>
-        <div className="rounded-lg bg-white/7 p-2 sm:p-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8ca3b8]">
-            Arousal
-          </div>
-          <div className="mt-1 text-base font-semibold text-white sm:text-lg">{arousalLabel}</div>
-        </div>
-      </div>
-      <HeartRateCurve physiology={physiology} summary={summary} />
-      {physiology.error ? <p className="mt-3 text-sm text-rose-300">{physiology.error}</p> : null}
-    </section>
+      {children}
+    </div>
   );
 }
 
-function SetupStep({ children, complete, icon: Icon, title }) {
+function SetupStep({ children, complete, index, title }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/6 p-4 shadow-sm backdrop-blur">
-      <div className="flex items-start gap-3">
+    <div className={`${GLASS_CARD} p-5`}>
+      <div className="flex items-start gap-4">
         <div
-          className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
-            complete ? "bg-[#32e6c8]/18 text-[#32e6c8]" : "bg-white/8 text-[#8ca3b8]"
+          className={`flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+            complete
+              ? `${ACCENT_GRADIENT} text-[#05060f]`
+              : "border border-white/15 bg-white/[0.04] text-slate-300"
           }`}
         >
-          {complete ? <CheckCircle2 className="size-5" /> : <Icon className="size-5" />}
+          {complete ? <CheckCircle2 className="size-5" /> : index}
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-white">{title}</div>
-          <div className="mt-1 text-sm leading-5 text-[#9db0c4]">{children}</div>
+          <div className="mt-1.5 text-sm leading-6 text-slate-400">{children}</div>
         </div>
       </div>
     </div>
   );
 }
 
-function TasteOnboardingModal({
-  genreOptions,
-  onContinue,
-  selectedGenres,
-  setSelectedGenres,
-  trackCount,
-}) {
-  const selectedSet = new Set(selectedGenres);
-
-  function toggleGenre(genre) {
-    setSelectedGenres((items) =>
-      items.includes(genre) ? items.filter((item) => item !== genre) : [...items, genre],
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/92 px-3 py-4 backdrop-blur-xl sm:px-4 sm:py-6">
-      <section
-        aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-6xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] shadow-[0_34px_120px_rgba(0,0,0,0.58)]"
-        role="dialog"
-      >
-        <div className="grid lg:grid-cols-[0.86fr_1.14fr]">
-          <div className="relative overflow-hidden bg-[#020712] p-5 sm:p-8">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(20,184,166,0.28),rgba(7,24,39,0.92)_46%,rgba(249,115,22,0.36))]" />
-            <div className="relative flex min-h-[300px] flex-col justify-between gap-8 lg:min-h-full">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white">
-                  <ListMusic className="size-4" />
-                  Music taste baseline
-                </div>
-                <h2 className="mt-6 max-w-md text-4xl font-semibold leading-[0.98] tracking-tight text-white sm:text-6xl">
-                  Choose the sounds you would actually listen to.
-                </h2>
-                <p className="mt-4 max-w-sm text-sm leading-6 text-white/70">
-                  Both listening blocks use the same selected music taste. The
-                  recommendation logic stays hidden during the session.
-                </p>
-              </div>
-              <div className="rounded-lg border border-white/12 bg-white/7 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-[#32e6c8] text-[#020712]">
-                    <Music2 className="size-5" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-white">Embedded music playback</div>
-                    <div className="text-sm text-white/62">
-                      {trackCount} high-instrumentalness tracks from the full catalog.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-5 sm:p-8">
-            <SectionLabel icon={Headphones}>Vibe Shuffle</SectionLabel>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                  Pick your music lanes.
-                </h2>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-[#9db0c4]">
-                  Select at least two genres. The protocol remains blinded during playback.
-                </p>
-              </div>
-              <span className="w-fit rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
-                {selectedGenres.length} selected
-              </span>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {genreOptions.map((option, index) => {
-                const active = selectedSet.has(option.genre);
-                const accent =
-                  ["#32e6c8", "#f97316", "#818cf8", "#22c55e", "#7dd3fc"][index % 5];
-
-                return (
-                  <button
-                    className={`group min-h-[112px] rounded-lg border p-3 text-left transition ${
-                      active
-                        ? "border-[#32e6c8] bg-[#32e6c8]/14 shadow-[0_18px_46px_rgba(0,0,0,0.25)]"
-                        : "border-white/10 bg-white/6 hover:border-white/22 hover:bg-white/9"
-                    }`}
-                    key={option.genre}
-                    onClick={() => toggleGenre(option.genre)}
-                    type="button"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="size-3 rounded-full shadow-[0_0_18px_currentColor]"
-                        style={{ background: accent, color: accent }}
-                      />
-                      {active ? <CheckCircle2 className="size-4 text-[#32e6c8]" /> : null}
-                    </div>
-                    <div className="mt-4 text-base font-semibold leading-tight text-white">
-                      {option.label}
-                    </div>
-                    <div className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#8ca3b8]">
-                      {option.count} tracks
-                    </div>
-                    {option.samples?.[0] ? (
-                      <div className="mt-3 line-clamp-2 text-xs leading-4 text-[#9db0c4]">
-                        {option.samples[0]}
-                      </div>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-[#8ca3b8]">
-                Instrumental filter: Spotify instrumentalness at least 0.85, low speechiness.
-              </p>
-              <button
-                className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-6 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45"
-                disabled={selectedGenres.length < 2}
-                onClick={onContinue}
-                type="button"
-              >
-                Continue setup
-                <SkipForward className="size-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function IntroModal({
+function SetupScreen({
   cameraReady,
-  catalogRequiresSpotify,
   face,
+  library,
   onConnectHeartSensor,
   onConnectSpotify,
   onDisconnectHeartSensor,
   onStart,
   onStartCamera,
   onStartMockHeartSensor,
-  open,
   physiology,
   setupReady,
   spotifyAuth,
   spotifyPlayer,
-  trackCount,
 }) {
-  if (!open) return null;
+  const matchedCount = library.matchedTracks.length;
+  const enoughTracks = matchedCount >= MIN_MATCHED_TRACKS;
 
-  const spotifyReady = !catalogRequiresSpotify || spotifyPlayer.ready;
+  const spotifyStepComplete = spotifyAuth.authenticated && spotifyPlayer.ready;
+  const libraryStepComplete = library.status === "ready" && enoughTracks;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
+
+  const spotifyStatusText = !spotifyAuth.authenticated
+    ? spotifyAuth.error || "Sign in with Spotify Premium. Your music plays right in this browser."
+    : spotifyPlayer.ready
+      ? "Spotify player is connected and ready."
+      : spotifyPlayer.error || "Connecting the Spotify player…";
+
+  const libraryStatusText =
+    library.status === "loading"
+      ? `Reading your library… ${library.totalCount} songs found so far.`
+      : library.status === "ready"
+        ? enoughTracks
+          ? `${matchedCount} of your ${library.totalCount} songs are mood-mapped and ready.`
+          : `Only ${matchedCount} of ${library.totalCount} songs could be mood-mapped — at least ${MIN_MATCHED_TRACKS} are needed. Try an account with more saved music.`
+        : library.status === "error"
+          ? library.error
+          : "Connects automatically after the Spotify sign-in.";
+
   const physiologyStatusText =
     physiology.status === "ready"
       ? physiology.baseline
@@ -2185,190 +1568,151 @@ function IntroModal({
         : physiology.status === "connecting"
           ? "Connecting to heart-rate sensor."
           : physiology.status === "waiting"
-            ? "Sensor is paired. Waiting for live heart-rate packets. Wear the strap and wet the electrodes."
+            ? "Sensor is paired. Waiting for live heart-rate packets."
             : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/86 px-3 py-4 backdrop-blur-xl sm:px-4 sm:py-6">
-      <section
-        aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-5xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] shadow-[0_34px_120px_rgba(0,0,0,0.55)]"
-        role="dialog"
-      >
-        <div className="grid lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <div className="relative overflow-hidden bg-[#020712] p-5 text-white sm:p-8">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(49,46,129,0.70),rgba(7,24,39,0.82)_48%,rgba(249,115,22,0.48))]" />
-            <div className="relative flex min-h-[300px] flex-col gap-5 sm:min-h-[390px] sm:gap-7 lg:min-h-full">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white shadow-sm backdrop-blur">
-                <Radio className="size-4" />
-                Guided adaptive session
-              </div>
-              <div className="max-w-[460px]">
-                <h2 className="text-3xl font-semibold leading-[1.04] tracking-tight sm:text-5xl xl:text-6xl">
-                  Music made for your current state.
-                </h2>
-                <p className="mt-4 max-w-sm text-sm leading-6 text-white/72">
-                  Music starts only after you press play. After each track, one short rating
-                  appears before the next listening window.
-                </p>
-              </div>
-              <div className="mt-auto flex h-16 items-end gap-2 opacity-85 sm:h-24 sm:gap-3" aria-hidden="true">
-                {[48, 82, 56, 106, 64, 92, 50, 76, 112, 62, 88, 54].map((height, index) => (
-                  <span
-                    className="w-full rounded-full bg-white/70"
-                    key={`${height}-${index}`}
-                    style={{
-                      animation: `soft-pulse ${2 + index * 0.09}s ease-in-out infinite`,
-                      height: `${height}px`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-5 sm:p-8">
-            <div className="max-w-xl">
-              <SectionLabel icon={Headphones}>Vibe Shuffle</SectionLabel>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Your adaptive music session is ready.
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-[#9db0c4]">
-                Expression and optional ECG/HRV signals stay local in this browser. The session is
-                blinded for the participant and exports only validation data after completion.
-              </p>
-            </div>
-
-            <div className="mt-6 grid gap-3">
-              <SetupStep complete={cameraReady} icon={Camera} title="Camera signal">
-                <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-                  <span>
-                    {cameraReady
-                      ? "Expression detection is ready."
-                      : face.error || "Optional: enable local expression detection."}
-                  </span>
-                  {!cameraReady ? (
-                    <button
-                      className="w-fit shrink-0 rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
-                      onClick={onStartCamera}
-                      type="button"
-                    >
-                      Enable
-                    </button>
-                  ) : null}
-                </div>
-              </SetupStep>
-              <SetupStep complete={physiologyReady} icon={HeartPulse} title="Heart-rate sensor">
-                <div className="flex flex-col gap-3">
-                  <span>{physiologyStatusText}</span>
-                  {physiology.status === "idle" || physiology.status === "error" ? (
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        className="rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
-                        onClick={onConnectHeartSensor}
-                        type="button"
-                      >
-                        Connect
-                      </button>
-                      <button
-                        className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-white/14"
-                        onClick={onStartMockHeartSensor}
-                        type="button"
-                      >
-                        Demo
-                      </button>
-                    </div>
-                  ) : physiology.connected ? (
-                    <button
-                      className="w-fit rounded-full bg-white/8 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-white/14"
-                      onClick={onDisconnectHeartSensor}
-                      type="button"
-                    >
-                      Skip ECG
-                    </button>
-                  ) : null}
-                </div>
-              </SetupStep>
-              {catalogRequiresSpotify ? (
-                <SetupStep complete={spotifyReady} icon={Lock} title="Spotify playback">
-                  <div className="flex flex-col gap-3 min-[430px]:flex-row min-[430px]:items-center min-[430px]:justify-between">
-                    <span>
-                      {spotifyPlayer.ready
-                        ? "Spotify playback device is connected."
-                        : spotifyAuth.error || spotifyPlayer.error || "Connect Spotify Premium playback."}
-                    </span>
-                    {!spotifyAuth.authenticated ? (
-                      <button
-                        className="w-fit shrink-0 rounded-full bg-[#32e6c8] px-3 py-1.5 text-xs font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
-                        onClick={onConnectSpotify}
-                        type="button"
-                      >
-                        Connect
-                      </button>
-                    ) : null}
-                  </div>
-                </SetupStep>
-              ) : null}
-            </div>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <button
-                className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-6 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/18 disabled:text-white/45 sm:w-auto"
-                disabled={!setupReady}
-                onClick={onStart}
-                type="button"
-              >
-                Continue to player
-                <SkipForward className="size-4" />
-              </button>
-              <span className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
-                {trackCount} instrumental tracks
-              </span>
-            </div>
-          </div>
+    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center gap-10 px-4 py-12 sm:px-6">
+      <div className="flex flex-col items-center gap-8 text-center">
+        <BrandMark compact />
+        <div>
+          <h1 className="mx-auto max-w-2xl text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl">
+            Music from your library,{" "}
+            <span className={ACCENT_TEXT_GRADIENT}>tuned to your state of mind.</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-slate-400">
+            Two short listening blocks built from your own Spotify songs. Your expression and
+            optional heart-rate signals stay local in this browser — only your ratings are saved.
+          </p>
         </div>
-      </section>
+      </div>
+
+      <div className="grid gap-3">
+        <SetupStep complete={spotifyStepComplete} index={1} title="Connect Spotify">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>{spotifyStatusText}</span>
+            {!spotifyAuth.authenticated ? (
+              <GhostButton className="shrink-0" onClick={onConnectSpotify}>
+                Connect
+              </GhostButton>
+            ) : null}
+          </div>
+        </SetupStep>
+
+        <SetupStep complete={libraryStepComplete} index={2} title="Your music, mood-mapped">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span className="flex items-center gap-2">
+              {library.status === "loading" ? (
+                <Loader2 className="size-4 shrink-0 animate-spin text-cyan-300" />
+              ) : null}
+              {libraryStatusText}
+            </span>
+            {library.status === "error" ? (
+              <GhostButton className="shrink-0" onClick={library.retry}>
+                Retry
+              </GhostButton>
+            ) : null}
+          </div>
+        </SetupStep>
+
+        <SetupStep complete={cameraReady} index={3} title="Camera signal (optional)">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {cameraReady
+                ? "Expression detection is running."
+                : face.error || "Local expression detection helps the adaptive block."}
+            </span>
+            {!cameraReady ? (
+              <GhostButton className="shrink-0" onClick={onStartCamera}>
+                Enable
+              </GhostButton>
+            ) : null}
+          </div>
+          {face.status === "loading" || cameraReady ? (
+            <div className="mt-3 h-28 w-44 overflow-hidden rounded-xl border border-white/10 bg-black/50">
+              <video
+                aria-label="Local camera preview"
+                className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                muted
+                playsInline
+                ref={face.setVideoRef}
+              />
+            </div>
+          ) : null}
+        </SetupStep>
+
+        <SetupStep complete={physiologyReady && physiology.connected} index={4} title="Heart-rate sensor (optional)">
+          <div className="flex flex-col gap-3">
+            <span>{physiologyStatusText}</span>
+            {physiology.status === "idle" || physiology.status === "error" ? (
+              <div className="flex flex-wrap gap-2">
+                <GhostButton onClick={onConnectHeartSensor}>Connect</GhostButton>
+                <GhostButton onClick={onStartMockHeartSensor}>Demo</GhostButton>
+              </div>
+            ) : physiology.connected ? (
+              <GhostButton className="w-fit" onClick={onDisconnectHeartSensor}>
+                Skip ECG
+              </GhostButton>
+            ) : null}
+          </div>
+        </SetupStep>
+      </div>
+
+      <div className="flex flex-col items-center gap-4">
+        <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
+          Begin session
+          <SkipForward className="size-4" />
+        </PrimaryButton>
+        <p className="text-xs text-slate-500">
+          {PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK} short tracks · one quick rating after each ·
+          about 7 minutes
+        </p>
+      </div>
     </div>
   );
 }
 
 function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open, song }) {
-  if (!open) return null;
+  if (!open || !song) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#020712]/72 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#05060f]/80 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-6">
       <section
         aria-modal="true"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-white/10 bg-[#071827] p-5 shadow-[0_32px_110px_rgba(0,0,0,0.48)] sm:p-7"
+        className={`${GLASS_CARD} max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#0a0d1d]/90 p-6 sm:p-8`}
         role="dialog"
       >
-        <SectionLabel icon={BarChart3}>Rating required</SectionLabel>
+        <SectionLabel icon={BarChart3}>Quick rating</SectionLabel>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           How well did this track fit your mood?
         </h2>
-        <p className="mt-2 text-sm text-[#9db0c4]">
+        <p className="mt-2 text-sm leading-6 text-slate-400">
           You just listened to <span className="font-semibold text-white">{song.title}</span>.
           Select one rating to continue.
         </p>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:grid-cols-4 sm:gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {RATING_OPTIONS.map((option) => {
             const active = currentRating?.rating_1_to_4 === option.score;
 
             return (
               <button
-                className={`min-h-28 rounded-lg border px-3 py-3 text-left transition sm:min-h-32 sm:py-4 ${
+                className={`min-h-28 rounded-2xl border px-3 py-4 text-left transition sm:min-h-32 ${
                   active
-                    ? "border-[#32e6c8] bg-[#32e6c8] text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)]"
-                    : "border-white/10 bg-white/7 text-[#c7d7e6] hover:border-[#32e6c8]/50 hover:bg-white/10"
+                    ? "border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_16px_44px_rgba(34,211,238,0.3)]"
+                    : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-cyan-300/40 hover:bg-white/[0.08]"
                 }`}
                 key={option.score}
                 onClick={() => onRate(option.score)}
                 type="button"
               >
                 <span className="block text-3xl font-semibold">{option.score}</span>
-                <span className="mt-3 block text-sm font-bold leading-tight">{option.label}</span>
-                <span className={`mt-2 block text-xs leading-4 ${active ? "text-[#063333]" : "text-[#8ca3b8]"}`}>
+                <span className="mt-3 block text-sm font-semibold leading-tight">{option.label}</span>
+                <span
+                  className={`mt-1.5 block text-xs leading-4 ${
+                    active ? "text-[#05060f]/70" : "text-slate-500"
+                  }`}
+                >
                   {option.description}
                 </span>
               </button>
@@ -2376,43 +1720,60 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
           })}
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#9db0c4]">1 means no fit. 4 means a very good mood fit.</p>
-          <button
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-5 py-3 text-sm font-semibold text-[#020712] shadow-[0_18px_44px_rgba(0,0,0,0.28)] transition hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45"
-            disabled={!currentRating}
-            onClick={onContinue}
-            type="button"
-          >
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-500">1 means no fit. 4 means a very good mood fit.</p>
+          <PrimaryButton disabled={!currentRating} onClick={onContinue}>
             {nextButtonLabel}
             <SkipForward className="size-4" />
-          </button>
+          </PrimaryButton>
         </div>
       </section>
     </div>
   );
 }
 
+function CoverArt({ isPlaying, song }) {
+  return (
+    <div className="relative mx-auto aspect-square w-full max-w-[280px] overflow-hidden rounded-3xl border border-white/12 shadow-[0_30px_90px_rgba(0,0,0,0.55)]">
+      {song.albumImageUrl ? (
+        <img alt="" className="h-full w-full object-cover" src={song.albumImageUrl} />
+      ) : (
+        <div
+          className="h-full w-full"
+          style={{
+            background: `linear-gradient(140deg, ${song.palette[0]} 0%, ${song.palette[1]} 55%, ${song.palette[2]} 100%)`,
+          }}
+        />
+      )}
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(5,6,15,0.4))]" />
+      <div className="absolute inset-x-6 bottom-5 flex items-end gap-1.5 opacity-90">
+        {[34, 58, 42, 72, 38, 62, 46].map((height, index) => (
+          <span
+            className="w-full rounded-full bg-white/80"
+            key={`${song.id}-${height}-${index}`}
+            style={{
+              animation: isPlaying
+                ? `soft-pulse ${1.8 + index * 0.14}s ease-in-out infinite`
+                : "none",
+              height: `${height * 0.4}px`,
+              opacity: isPlaying ? 0.9 : 0.35,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const songs = useMemo(() => getCatalogTracks().map(normalizeSong), []);
-  const genreOptions = useMemo(() => getCatalogGenreOptions(songs), [songs]);
-  const catalogSource = Array.isArray(musicCatalog) ? "legacy" : musicCatalog.source;
-  const catalogUsesSpotifyEmbed =
-    catalogSource === "spotify_dataset_full" || songs.some((song) => song.source === "spotify_dataset_full");
-  const catalogRequiresSpotify =
-    catalogUsesSpotifyEmbed &&
-    songs.every((song) => getTrackPlaybackMode(song, catalogUsesSpotifyEmbed) === "spotify");
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
   const spotifyPlayerReady = spotifyPlayer.ready;
   const spotifyPlayerError = spotifyPlayer.error;
   const pauseSpotify = spotifyPlayer.pause;
   const playSpotifyTrack = spotifyPlayer.playTrack;
-  const demoAudio = useDemoAudio();
-  const demoAudioError = demoAudio.error;
-  const pauseDemoAudio = demoAudio.pause;
-  const playDemoSong = demoAudio.playSong;
-  const stopDemoAudio = demoAudio.stop;
+  const library = useSpotifyLibrary(spotifyAuth.authenticated, spotifyAuth.ensureToken);
+  const songs = library.matchedTracks;
   const face = useFaceExpression();
   const physiology = usePhysiologySensor();
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -2421,7 +1782,7 @@ export default function App() {
   const [protocolId, setProtocolId] = useState(() => createProtocolId());
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [currentSong, setCurrentSong] = useState(() => songs[0]);
+  const [currentSong, setCurrentSong] = useState(null);
   const [history, setHistory] = useState([]);
   const [queueSeed, setQueueSeed] = useState(24);
   const [trialId, setTrialId] = useState(1);
@@ -2431,9 +1792,6 @@ export default function App() {
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
   const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
-  const [selectedGenres, setSelectedGenres] = useState([]);
-  const [tasteOnboardingComplete, setTasteOnboardingComplete] = useState(false);
-  const youtubeFrameRef = useRef(null);
   const playbackRequestRef = useRef(0);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
@@ -2455,24 +1813,6 @@ export default function App() {
   );
   const mood = signalStateToMood(liveFusion);
   const recentIds = useMemo(() => history.slice(-8).map((song) => song.id), [history]);
-  const queue = useMemo(
-    () => rankSongs(songs, mode, mood, currentSong.id, queueSeed, recentIds, selectedGenres).slice(0, 4),
-    [
-      currentSong.id,
-      mode,
-      mood.energy,
-      mood.tag,
-      mood.valence,
-      queueSeed,
-      recentIds,
-      selectedGenres,
-      songs,
-    ],
-  );
-  const selectedGenreLabels = useMemo(() => {
-    const labels = new Map(genreOptions.map((option) => [option.genre, option.label]));
-    return selectedGenres.map((genre) => labels.get(genre) ?? genre);
-  }, [genreOptions, selectedGenres]);
   const currentRating = ratings.find((rating) => rating.trial_id === trialId);
   const canJumpToRating =
     sessionStarted &&
@@ -2482,15 +1822,13 @@ export default function App() {
     (isPlaybackActive || trackProgress > 0);
   const totalTrials = PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK;
   const completedTrials = ratings.length;
-  const progressPercent = Math.round((completedTrials / totalTrials) * 100);
   const remainingSeconds =
     LISTENING_WINDOW_SECONDS * (1 - Math.min(trackProgress, 100) / 100);
-  const cameraReady =
-    face.status === "ready" || face.status === "searching";
-  const playbackReady = !catalogRequiresSpotify || spotifyPlayerReady;
+  const cameraReady = face.status === "ready" || face.status === "searching";
+  const enoughTracks = songs.length >= MIN_MATCHED_TRACKS;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
-  const setupReady = playbackReady && physiologyReady;
-  const isFallbackCatalog = catalogSource === "real-instrumental-demo" || catalogSource === "legacy";
+  const setupReady =
+    spotifyPlayerReady && library.status === "ready" && enoughTracks && physiologyReady;
 
   function currentWindowSummary() {
     return summarizeExpressionSamples(expressionWindowRef.current, face);
@@ -2504,111 +1842,38 @@ export default function App() {
     );
   }
 
-  function resetExpressionWindow() {
+  function resetSignalWindows() {
     expressionWindowRef.current = [];
     lastWindowSampleIdRef.current = face.sampleId ?? 0;
-  }
-
-  function resetPhysiologyWindow() {
     physiologyWindowRef.current = [];
     lastPhysiologySampleIdRef.current = physiology.sampleId ?? 0;
   }
 
-  function resetSignalWindows() {
-    resetExpressionWindow();
-    resetPhysiologyWindow();
-  }
-
-  function sendYouTubeCommand(command) {
-    const frameWindow = youtubeFrameRef.current?.contentWindow;
-    if (!frameWindow) return;
-
-    frameWindow.postMessage(
-      JSON.stringify({
-        args: [],
-        event: "command",
-        func: command,
-      }),
-      "https://www.youtube.com",
-    );
-  }
-
-  function playYouTubeVideo() {
-    sendYouTubeCommand("playVideo");
-  }
-
-  function pauseYouTubeVideo() {
-    sendYouTubeCommand("pauseVideo");
-  }
-
   async function startCurrentTrack(song) {
-    const playbackMode = getTrackPlaybackMode(song, catalogUsesSpotifyEmbed);
-
-    if (playbackMode === "youtube") {
-      pauseSpotify();
-      pauseDemoAudio();
-      setPlaybackNotice("YouTube video is embedded for this track.");
-      window.setTimeout(playYouTubeVideo, 250);
-      return { started: true, message: "", mode: playbackMode };
-    }
-
-    if (playbackMode === "audio") {
-      const started = await playDemoSong(song);
-      return {
-        started,
-        mode: playbackMode,
-        message: started
-          ? "Curated instrumental track is playing."
-          : "Browser blocked the instrumental audio. Press play once in the browser.",
-      };
-    }
-
-    if (playbackMode === "demo") {
-      const started = await playDemoSong(song);
-      return {
-        started,
-        mode: playbackMode,
-        message: started
-          ? "Demo audio is generated locally until Spotify tracks are imported."
-          : "Demo audio could not start in this browser.",
-      };
-    }
-
-    const spotifyTrackUri = getSpotifyTrackUri(song);
-    if (!spotifyTrackUri) {
-      return {
-        started: false,
-        mode: playbackMode,
-        message: "This track has no available playback route.",
-      };
+    if (!song?.spotifyUri) {
+      return { started: false, message: "This track has no Spotify playback route." };
     }
 
     if (!spotifyPlayerReady) {
       return {
         started: false,
-        mode: playbackMode,
-        message: catalogRequiresSpotify
-          ? "Connect Spotify to play this catalog."
-          : "Waiting for Spotify playback device.",
+        message: "Waiting for the Spotify player. Reconnect Spotify if this persists.",
       };
     }
 
     try {
-      const startedBySdk = await playSpotifyTrack(spotifyTrackUri);
+      const started = await playSpotifyTrack(song.spotifyUri);
       return {
-        started: startedBySdk,
-        mode: playbackMode,
-        message: startedBySdk
+        started,
+        message: started
           ? ""
-          : spotifyPlayerError || "Could not start this track. Check Spotify login and premium playback.",
+          : spotifyPlayerError || "Spotify could not start this track. Check premium playback.",
       };
     } catch {
       return {
         started: false,
-        mode: playbackMode,
         message:
-          spotifyPlayerError ||
-          "Could not start this track. Please reconnect Spotify and try again.",
+          spotifyPlayerError || "Spotify could not start this track. Please reconnect and retry.",
       };
     }
   }
@@ -2634,8 +1899,6 @@ export default function App() {
     setIsPlaying(false);
     setIsPlaybackActive(false);
     pauseSpotify();
-    pauseDemoAudio();
-    pauseYouTubeVideo();
     setTrackProgress(100);
     setRatingPromptOpen(true);
 
@@ -2724,33 +1987,24 @@ export default function App() {
   useEffect(() => {
     if (ratingPromptOpen) {
       pauseSpotify();
-      pauseDemoAudio();
-      pauseYouTubeVideo();
     }
-  }, [pauseDemoAudio, pauseSpotify, ratingPromptOpen]);
+  }, [pauseSpotify, ratingPromptOpen]);
 
   function startSession() {
-    if (!setupReady || !songs.length || !tasteOnboardingComplete) return;
-    resetSignalWindows();
-    setSessionStarted(true);
-    setIsPlaying(false);
-    setIsPlaybackActive(false);
-    setTrackProgress(0);
-    setPlaybackNotice("Press Start music when you are ready.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+    if (!setupReady || !enoughTracks) return;
 
-  function completeTasteOnboarding() {
-    if (!selectedGenres.length || !songs.length) return;
-    const firstSong =
-      rankSongs(songs, "random", mood, currentSong.id, queueSeed, [], selectedGenres)[0] ??
-      songs[0];
+    const firstSong = rankSongs(songs, "random", mood, null, queueSeed, [])[0] ?? songs[0];
+    resetSignalWindows();
     setCurrentSong(firstSong);
     setHistory([]);
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
     setQueueSeed((value) => value + 7);
-    setTasteOnboardingComplete(true);
+    setSessionStarted(true);
+    setIsPlaying(false);
+    setIsPlaybackActive(false);
+    setTrackProgress(0);
+    setPlaybackNotice("Press play when you are ready.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2782,12 +2036,11 @@ export default function App() {
       songs,
       mode,
       selectionMood,
-      currentSong.id,
+      currentSong?.id ?? null,
       queueSeed,
       recentIds,
-      selectedGenres,
     );
-    const nextSong = rankedSongs[0] ?? queue[0] ?? songs[0];
+    const nextSong = rankedSongs[0] ?? songs[0];
     const isLastTrackInBlock = currentTrackIndex === TRACKS_PER_BLOCK - 1;
     const isLastBlock = currentBlockIndex === PROTOCOL_BLOCKS.length - 1;
 
@@ -2796,8 +2049,7 @@ export default function App() {
       setRatingPromptOpen(false);
       setIsPlaying(false);
       setIsPlaybackActive(false);
-      stopDemoAudio();
-      pauseYouTubeVideo();
+      pauseSpotify();
       window.setTimeout(() => downloadCsv(ratings, protocolId), 0);
       return;
     }
@@ -2808,10 +2060,9 @@ export default function App() {
         songs,
         nextBlock.mode,
         selectionMood,
-        currentSong.id,
+        currentSong?.id ?? null,
         queueSeed + 31,
         recentIds,
-        selectedGenres,
       );
 
       setCurrentBlockIndex((value) => value + 1);
@@ -2826,7 +2077,7 @@ export default function App() {
   }
 
   function rateCurrentSong(score) {
-    if (protocolComplete || !ratingPromptOpen) return;
+    if (protocolComplete || !ratingPromptOpen || !currentSong) return;
 
     setRatings((items) => {
       const expressionSummary = currentWindowSummary();
@@ -2837,8 +2088,8 @@ export default function App() {
         protocol_id: protocolId,
         trial_id: trialId,
         timestamp: new Date().toISOString(),
-        selected_genres: selectedGenres.join("|"),
-        selected_genre_labels: selectedGenreLabels.join("|"),
+        selected_genres: "",
+        selected_genre_labels: "",
         block_number: currentBlockIndex + 1,
         block_mode: mode,
         mode,
@@ -2846,28 +2097,28 @@ export default function App() {
         listening_window_seconds: LISTENING_WINDOW_SECONDS,
         jumped_to_rating: jumpedTrialIds.includes(trialId),
         song_id: currentSong.id,
-        song_source: currentSong.source ?? catalogSource,
-        jamendo_id: currentSong.jamendoId,
+        song_source: "user_library",
+        jamendo_id: null,
         spotify_id: currentSong.spotifyId,
         spotify_uri: currentSong.spotifyUri,
         song_title: currentSong.title,
         artist: currentSong.artist,
         album: currentSong.album,
-        song_track_genre: currentSong.trackGenre,
-        song_track_genre_label: currentSong.trackGenreLabel,
+        song_track_genre: null,
+        song_track_genre_label: null,
         song_popularity: currentSong.popularity,
         song_quadrant: currentSong.quadrant,
         song_valence: currentSong.valence,
         song_arousal: currentSong.energy,
         song_instrumentalness: currentSong.instrumentalness,
-        song_speechiness: currentSong.speechiness,
-        song_category_source: currentSong.categorySource,
-        song_analysis_confidence: currentSong.analysisConfidence,
+        song_speechiness: null,
+        song_category_source: "kaggle_feature_lookup",
+        song_analysis_confidence: null,
         song_external_url: currentSong.externalUrl,
-        song_license_url: currentSong.licenseUrl,
-        youtube_video_id: currentSong.youtubeVideoId,
-        youtube_url: currentSong.youtubeUrl,
-        youtube_search_url: currentSong.youtubeSearchUrl,
+        song_license_url: null,
+        youtube_video_id: null,
+        youtube_url: null,
+        youtube_search_url: null,
         detected_expression: expressionMood.tag,
         detected_expression_label: expressionMood.label,
         detected_valence: Number(expressionMood.valence.toFixed(3)),
@@ -2911,11 +2162,12 @@ export default function App() {
   }
 
   function resetProtocol() {
+    playbackRequestRef.current += 1;
     resetSignalWindows();
     setProtocolId(createProtocolId());
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
-    setCurrentSong(songs[0]);
+    setCurrentSong(null);
     setHistory([]);
     setQueueSeed(24);
     setTrialId(1);
@@ -2928,10 +2180,7 @@ export default function App() {
     setIsPlaybackActive(false);
     setPlaybackNotice("");
     setJumpedTrialIds([]);
-    setSelectedGenres([]);
-    setTasteOnboardingComplete(false);
-    pauseYouTubeVideo();
-    stopDemoAudio();
+    pauseSpotify();
   }
 
   function jumpToRating() {
@@ -2940,7 +2189,7 @@ export default function App() {
   }
 
   async function togglePlayback() {
-    if (!sessionStarted || protocolComplete || ratingPromptOpen) return;
+    if (!sessionStarted || protocolComplete || ratingPromptOpen || !currentSong) return;
 
     if (isPlaying) {
       playbackRequestRef.current += 1;
@@ -2948,8 +2197,6 @@ export default function App() {
       setIsPlaybackActive(false);
       setPlaybackNotice("");
       await pauseSpotify();
-      await pauseDemoAudio();
-      pauseYouTubeVideo();
       return;
     }
 
@@ -2963,338 +2210,214 @@ export default function App() {
       : currentBlockIndex === PROTOCOL_BLOCKS.length - 1 &&
           currentTrackIndex === TRACKS_PER_BLOCK - 1
         ? "Finish session"
-        : currentTrackIndex === TRACKS_PER_BLOCK - 1
-          ? "Continue"
-          : "Next track";
+        : "Next track";
 
-  if (!songs.length) {
+  if (!sessionStarted) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#020712] px-4 text-white">
-        <section className="max-w-lg rounded-lg border border-white/10 bg-[#071827] p-6 text-center shadow-sm">
-          <SectionLabel icon={Waves}>Catalog missing</SectionLabel>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-            No tracks are available.
-          </h1>
-          <p className="mt-2 text-sm text-[#9db0c4]">
-            Run <span className="font-mono">npm run kaggle:catalog</span> to generate the
-            full Spotify-dataset instrumental catalog.
-          </p>
-        </section>
+      <main className="relative min-h-screen bg-[#05060f] text-slate-100">
+        <AuroraBackground />
+        <SetupScreen
+          cameraReady={cameraReady}
+          face={face}
+          library={library}
+          onConnectHeartSensor={physiology.connectBle}
+          onConnectSpotify={spotifyAuth.connect}
+          onDisconnectHeartSensor={physiology.disconnect}
+          onStart={startSession}
+          onStartCamera={face.start}
+          onStartMockHeartSensor={physiology.startMock}
+          physiology={physiology}
+          setupReady={setupReady}
+          spotifyAuth={spotifyAuth}
+          spotifyPlayer={spotifyPlayer}
+        />
       </main>
     );
   }
 
-  return (
-    <main className="min-h-screen overflow-x-hidden bg-[linear-gradient(160deg,#020712_0%,#071827_48%,#101329_74%,#20140f_100%)] text-white xl:h-screen xl:overflow-hidden">
+  const physiologySummary = physiology.currentSummary;
+  const heartRateLabel = Number.isFinite(physiologySummary.hr_bpm_mean)
+    ? `${Math.round(physiologySummary.hr_bpm_mean)} bpm`
+    : "—";
 
-      <div className="relative mx-auto flex w-full max-w-[1440px] flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 lg:px-8 lg:py-4 xl:h-full">
-        <header className="flex flex-col gap-3 rounded-lg border border-white/10 bg-[#071827] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.28)] sm:px-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#32e6c8] text-[#020712] shadow-[0_0_38px_rgba(50,230,200,0.24)]">
-              <Waves className="size-5" />
-            </div>
-            <div>
-              <div className="text-lg font-semibold tracking-tight text-white">Vibe Shuffle</div>
-              <p className="text-sm text-[#8ca3b8]">Music that adapts to your emotional state.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <span className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
-              {completedTrials}/{totalTrials} rated
+  return (
+    <main className="relative min-h-screen bg-[#05060f] text-slate-100">
+      <AuroraBackground />
+
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <BrandMark compact />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
+              Trial {Math.min(completedTrials + 1, totalTrials)}/{totalTrials}
             </span>
-            <span className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
-              {ratingPromptOpen ? "Rating required" : isPlaying ? "Listening" : "Ready"}
+            <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
+              <span
+                className={`size-1.5 rounded-full ${
+                  isPlaying ? "animate-pulse bg-cyan-300" : "bg-white/25"
+                }`}
+              />
+              {ratingPromptOpen ? "Rating" : isPlaying ? "Listening" : "Ready"}
             </span>
             {protocolComplete ? (
-              <>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full bg-[#32e6c8] px-4 py-2 text-sm font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
-                  onClick={() => downloadCsv(ratings, protocolId)}
-                  type="button"
-                >
-                  <Download className="size-4" />
-                  Save CSV
-                </button>
-                <button
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/14"
-                  onClick={resetProtocol}
-                  type="button"
-                >
-                  <RotateCcw className="size-4" />
-                  Reset
-                </button>
-              </>
+              <GhostButton onClick={() => downloadCsv(ratings, protocolId)}>
+                <Download className="size-4" />
+                CSV
+              </GhostButton>
             ) : null}
           </div>
         </header>
 
-        {isFallbackCatalog ? (
-          <section className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-5 py-3 text-sm text-amber-100">
-            Real instrumental fallback loaded. Run{" "}
-            <span className="font-mono">npm run jamendo:catalog</span> to replace it with a
-            Jamendo-derived 100-track instrumental pool.
-          </section>
-        ) : null}
+        <section className={`${GLASS_CARD} overflow-hidden`}>
+          <div className="grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[300px_minmax(0,1fr)]">
+            {currentSong ? <CoverArt isPlaying={isPlaying} song={currentSong} /> : null}
 
-        <section className="grid gap-4 sm:gap-5 xl:min-h-0 xl:flex-1 xl:grid-cols-2 xl:grid-rows-2 xl:gap-4 xl:items-stretch">
-          <section className={`${MAIN_PANEL_CLASS} bg-[#020712] text-white`}>
-            <div className="grid h-full min-h-0 grid-cols-[minmax(118px,38%)_minmax(0,1fr)] sm:grid-cols-[minmax(170px,36%)_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="relative min-h-0 p-3 sm:p-5 xl:p-4">
-                <div
-                  className="absolute inset-0 opacity-80"
-                  style={{
-                    background: `linear-gradient(135deg, ${currentSong.palette[0]} 0%, ${currentSong.palette[1]} 48%, ${currentSong.palette[2]} 100%)`,
-                  }}
-                />
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,7,18,0.18),rgba(2,7,18,0.84))]" />
-                <div className="relative flex h-full min-h-0 flex-col justify-between gap-4 sm:gap-5 xl:gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-white shadow-sm sm:text-[11px]">
-                      <Headphones className="size-4" />
-                      Participant session
-                    </span>
-                    <span className="rounded-full border border-white/14 bg-[#020712]/34 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/90 sm:text-[11px]">
-                      Trial {completedTrials + 1}/{totalTrials}
-                    </span>
-                  </div>
-                  <div className="flex flex-1 items-center justify-center">
-                    <MediaStage
-                      isPlaying={isPlaying}
-                      onReadyPlay={playYouTubeVideo}
-                      song={currentSong}
-                      youtubeFrameRef={youtubeFrameRef}
-                    />
-                  </div>
-                  <SessionWaveform isPlaying={isPlaying} song={currentSong} />
-                </div>
+            <div className="flex min-w-0 flex-col gap-7">
+              <div>
+                <SectionLabel icon={Music2}>Now playing</SectionLabel>
+                <h1 className="mt-3 break-words text-3xl font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl">
+                  {currentSong?.title}
+                </h1>
+                <p className="mt-2.5 text-lg text-slate-300 sm:text-xl">{currentSong?.artist}</p>
+                {currentSong?.album ? (
+                  <p className="mt-1 text-sm text-slate-500">{currentSong.album}</p>
+                ) : null}
               </div>
 
-              <div className="flex min-h-0 flex-col gap-4 overflow-y-auto bg-[#071827] p-4 text-white sm:p-6 xl:gap-3 xl:p-4">
-                <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between xl:gap-4">
-                  <div className="min-w-0">
-                    <SectionLabel icon={Music2}>Now playing</SectionLabel>
-                    <h2 className="mt-3 max-w-2xl break-words text-2xl font-semibold leading-[1.02] tracking-tight text-white sm:mt-5 sm:text-4xl xl:mt-3 xl:text-3xl">
-                      {currentSong.title}
-                    </h2>
-                    <p className="mt-2 text-lg text-[#c7d7e6] sm:mt-3 sm:text-xl xl:text-lg">{currentSong.artist}</p>
-                    {currentSong.album ? (
-                      <p className="mt-1 text-sm font-medium text-[#8ca3b8]">{currentSong.album}</p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#9db0c4]">
-                      {currentSong.trackGenreLabel ? (
-                        <span className="rounded-full border border-white/10 bg-white/7 px-3 py-1">
-                          {currentSong.trackGenreLabel}
-                        </span>
-                      ) : null}
-                      {currentSong.youtubeUrl ? (
-                        <a
-                          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/7 px-3 py-1 text-[#c7d7e6] transition hover:border-[#32e6c8]/60 hover:text-white"
-                          href={currentSong.youtubeUrl}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <Youtube className="size-3.5" />
-                          YouTube
-                        </a>
-                      ) : null}
-                    </div>
-                    <div className="mt-4 hidden flex-wrap gap-2 sm:mt-5 2xl:flex">
-                      {SESSION_MODES.map((modeLabel) => (
-                        <span
-                          className="rounded-full border border-white/10 bg-white/7 px-3 py-1.5 text-xs font-semibold text-[#c7d7e6]"
-                          key={modeLabel}
-                        >
-                          {modeLabel}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <ProgressRing className="hidden sm:block" label="rated" value={progressPercent} />
-                </div>
+              <div className="flex flex-wrap items-center gap-5">
+                <button
+                  aria-label={isPlaying ? "Pause music" : "Start music"}
+                  className={`flex size-20 shrink-0 items-center justify-center rounded-full ${ACCENT_GRADIENT} text-[#05060f] shadow-[0_0_60px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-white/30 disabled:shadow-none disabled:hover:scale-100`}
+                  disabled={protocolComplete || ratingPromptOpen}
+                  onClick={togglePlayback}
+                  type="button"
+                >
+                  {isPlaying ? (
+                    <Pause className="size-8" />
+                  ) : (
+                    <Play className="ml-1 size-8" />
+                  )}
+                </button>
 
-                <div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                      <button
-                        aria-label={isPlaying ? "Pause music" : "Start music"}
-                        className="inline-flex h-14 w-full items-center justify-center gap-3 rounded-full bg-[#32e6c8] px-6 text-base font-semibold text-[#020712] shadow-[0_22px_56px_rgba(0,0,0,0.34)] transition hover:-translate-y-0.5 hover:bg-[#8fffea] disabled:cursor-not-allowed disabled:bg-white/16 disabled:text-white/45 sm:h-16 sm:w-auto sm:px-8 xl:h-[3.25rem] xl:px-7"
-                        disabled={!sessionStarted || protocolComplete || ratingPromptOpen}
-                        onClick={togglePlayback}
-                        type="button"
-                      >
-                        {isPlaying ? <Pause className="size-5" /> : <Play className="size-5" />}
-                        {isPlaying ? "Pause" : trackProgress > 0 ? "Resume" : "Start music"}
-                      </button>
-                      <button
-                        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/8 px-5 text-sm font-semibold text-[#c7d7e6] transition hover:border-[#32e6c8]/50 hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/5 disabled:text-white/32 sm:h-16 sm:w-auto xl:h-[3.25rem]"
-                        disabled={!canJumpToRating}
-                        onClick={jumpToRating}
-                        type="button"
-                      >
-                        <SkipForward className="size-4" />
-                        Jump to rating
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-full bg-white/8 px-4 py-2 text-sm font-semibold text-[#c7d7e6]">
-                      <span
-                        className={`size-2 rounded-full ${
-                          isPlaying ? "animate-pulse bg-[#32e6c8]" : "bg-white/25"
-                        }`}
-                      />
-                      {ratingPromptOpen
-                        ? "Rating required"
-                        : isPlaying
-                          ? "Playing"
-                          : sessionStarted
-                            ? "Ready"
-                            : "Waiting"}
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <Clock3 className="size-3.5" />
+                      Listening window
+                    </span>
+                    <span>{ratingPromptOpen ? "Rate" : formatSeconds(remainingSeconds)}</span>
                   </div>
-                  {playbackNotice || spotifyPlayerError || demoAudioError ? (
-                    <p className="mt-3 text-sm text-[#8ca3b8]">
-                      {spotifyPlayerError || demoAudioError || playbackNotice}
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-2 min-[520px]:grid-cols-3 sm:gap-3 xl:gap-2">
-                  <div className="rounded-lg bg-white/7 px-4 py-3 xl:px-3 xl:py-2">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8ca3b8]">
-                      <Clock3 className="size-3.5 text-[#32e6c8]" />
-                      Window
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white xl:text-xl">
-                      {ratingPromptOpen ? "Rate" : formatSeconds(remainingSeconds)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-white/7 px-4 py-3 xl:px-3 xl:py-2">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8ca3b8]">
-                      <Gauge className="size-3.5 text-[#32e6c8]" />
-                      Mood
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white xl:text-xl">{mood.label}</div>
-                  </div>
-                  <div className="rounded-lg bg-white/7 px-4 py-3 xl:px-3 xl:py-2">
-                    <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-[#8ca3b8]">
-                      <BarChart3 className="size-3.5 text-[#32e6c8]" />
-                      Rated
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white xl:text-xl">
-                      {completedTrials}/{totalTrials}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-white/10 bg-white/6 p-4 xl:p-3">
-                  <div className="mb-3 flex items-center justify-between text-sm font-semibold text-[#9db0c4] xl:mb-2">
-                    <span>Listening window</span>
-                    <span>{ratingPromptOpen ? "Ready to rate" : `${Math.round(trackProgress)}%`}</span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
                     <div
-                      className="h-full rounded-full transition-all duration-700"
-                      style={{
-                        background: `linear-gradient(90deg, ${currentSong.accent}, ${mood.accent})`,
-                        width: `${trackProgress}%`,
-                      }}
+                      className={`h-full rounded-full ${ACCENT_GRADIENT} transition-all duration-700`}
+                      style={{ width: `${trackProgress}%` }}
                     />
+                  </div>
+                </div>
+
+                <GhostButton disabled={!canJumpToRating} onClick={jumpToRating}>
+                  <SkipForward className="size-4" />
+                  Rate now
+                </GhostButton>
+              </div>
+
+              {playbackNotice || spotifyPlayerError ? (
+                <p className="text-sm text-slate-400">{spotifyPlayerError || playbackNotice}</p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-3">
+          <SignalCard
+            icon={Sparkles}
+            label="Mood"
+            status={mood.facePresent ? mood.label : "Waiting"}
+          >
+            <MoodMap mood={mood} />
+          </SignalCard>
+
+          <SignalCard
+            icon={Camera}
+            label="Expression"
+            status={
+              face.status === "ready"
+                ? `${Math.round(face.confidence * 100)}%`
+                : face.status === "searching"
+                  ? "Searching"
+                  : "Off"
+            }
+          >
+            <div className="aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60">
+              <video
+                aria-label="Local camera preview"
+                className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                muted
+                playsInline
+                ref={face.setVideoRef}
+              />
+            </div>
+          </SignalCard>
+
+          <SignalCard icon={HeartPulse} label="Heart rate" status={heartRateLabel}>
+            <div className="flex aspect-square w-full flex-col justify-between rounded-2xl border border-white/10 bg-[#070a18] p-4">
+              <HeartRateCurve physiology={physiology} summary={physiologySummary} />
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    RMSSD
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {Number.isFinite(physiologySummary.rmssd_ms)
+                      ? `${Math.round(physiologySummary.rmssd_ms)} ms`
+                      : "—"}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
+                  <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Arousal
+                  </div>
+                  <div className="mt-1 text-sm font-semibold text-white">
+                    {Number.isFinite(physiologySummary.physiology_arousal)
+                      ? `${Math.round(physiologySummary.physiology_arousal * 100)}%`
+                      : "—"}
                   </div>
                 </div>
               </div>
             </div>
-          </section>
-
-          <section className={`${MAIN_PANEL_CLASS} flex flex-col bg-[#071827] p-4 sm:p-5 xl:p-4`}>
-            <div className="mb-4 xl:mb-3">
-              <SectionLabel icon={Sparkles}>Current Mood</SectionLabel>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl xl:text-2xl">
-                  {mood.label}
-                </h2>
-                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#c7d7e6]">
-                  <span
-                    className="size-2 rounded-full shadow-[0_0_18px_currentColor]"
-                    style={{ background: mood.accent, color: mood.accent }}
-                  />
-                  {mood.facePresent ? mood.tag.replace("_", " ") : "center"}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-[#9db0c4]">{mood.description}</p>
-            </div>
-
-            <div className="flex min-h-0 flex-1 items-center">
-              <MoodMap mood={mood} />
-            </div>
-          </section>
-
-          <CameraPanel face={face} />
-          <PhysiologyPanel physiology={physiology} />
+          </SignalCard>
         </section>
 
         {protocolComplete ? (
-          <section className="rounded-lg border border-[#32e6c8]/30 bg-[#32e6c8]/10 p-5 shadow-sm">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className={`${GLASS_CARD} p-6 sm:p-8`}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#32e6c8]">
+                <div className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
                   <ShieldCheck className="size-4" />
                   Session complete
                 </div>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
                   Thank you for rating all tracks.
                 </h2>
-                <p className="mt-1 text-sm text-[#9db0c4]">
+                <p className="mt-1 text-sm text-slate-400">
                   The recorded session data is ready to save.
                 </p>
               </div>
               <div className="flex gap-2">
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-[#32e6c8] px-4 py-2.5 text-sm font-semibold text-[#020712] shadow-sm transition hover:bg-[#8fffea]"
-                  onClick={() => downloadCsv(ratings, protocolId)}
-                  type="button"
-                >
+                <PrimaryButton onClick={() => downloadCsv(ratings, protocolId)}>
                   <Download className="size-4" />
                   Save session data
-                </button>
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-white/14"
-                  onClick={resetProtocol}
-                  type="button"
-                >
+                </PrimaryButton>
+                <GhostButton onClick={resetProtocol}>
                   <RotateCcw className="size-4" />
                   Reset
-                </button>
+                </GhostButton>
               </div>
             </div>
           </section>
         ) : null}
       </div>
 
-      {!tasteOnboardingComplete && !protocolComplete ? (
-        <TasteOnboardingModal
-          genreOptions={genreOptions}
-          onContinue={completeTasteOnboarding}
-          selectedGenres={selectedGenres}
-          setSelectedGenres={setSelectedGenres}
-          trackCount={songs.length}
-        />
-      ) : null}
-      <IntroModal
-        cameraReady={cameraReady}
-        catalogRequiresSpotify={catalogRequiresSpotify}
-        face={face}
-        onConnectHeartSensor={physiology.connectBle}
-        onConnectSpotify={spotifyAuth.connect}
-        onDisconnectHeartSensor={physiology.disconnect}
-        onStart={startSession}
-        onStartCamera={face.start}
-        onStartMockHeartSensor={physiology.startMock}
-        open={tasteOnboardingComplete && !sessionStarted && !protocolComplete}
-        physiology={physiology}
-        setupReady={setupReady}
-        spotifyAuth={spotifyAuth}
-        spotifyPlayer={spotifyPlayer}
-        trackCount={songs.length}
-      />
       <RatingModal
         currentRating={currentRating}
         nextButtonLabel={nextButtonLabel}

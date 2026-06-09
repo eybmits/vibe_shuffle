@@ -24,6 +24,7 @@
     "archive:catalog": "node scripts/build_internet_archive_catalog.mjs",
     "curated:catalog": "node scripts/build_curated_instrumental_catalog.mjs",
     "kaggle:catalog": "node scripts/build_kaggle_spotify_youtube_catalog.mjs",
+    "lookup:catalog": "node scripts/build_feature_lookup.mjs",
     "jamendo:catalog": "node scripts/build_jamendo_catalog.mjs",
     "spotify:catalog": "node scripts/build_spotify_catalog.mjs",
     "check:catalog-script": "node --check scripts/build_spotify_catalog.mjs && node --check scripts/build_jamendo_catalog.mjs && node --check scripts/build_internet_archive_catalog.mjs && node --check scripts/build_curated_instrumental_catalog.mjs && node --check scripts/build_kaggle_spotify_youtube_catalog.mjs",
