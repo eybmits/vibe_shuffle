@@ -815,40 +815,14 @@ function useSpotifyPlayer(accessToken, ensureToken) {
     [ensureToken],
   );
 
-  const waitForTrackStart = useCallback(async (expectedUri, timeoutMs = 2200) => {
-    if (!playerRef.current) return false;
-
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      const state = await playerRef.current.getCurrentState();
-
-      if (
-        state &&
-        !state.paused &&
-        state.track_window?.current_track?.uri === expectedUri
-      ) {
-        return true;
-      }
-
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 120);
-      });
-    }
-
-    return false;
-  }, []);
-
   const playTrack = useCallback(
     async (spotifyUri) => {
       if (!spotifyUri || !state.deviceId) return false;
       const token = await ensureToken();
       if (!token) return false;
-      const transferred = await transferToActiveDevice(state.deviceId);
-      if (!transferred) return false;
 
       const playBody = JSON.stringify({ uris: [spotifyUri], position_ms: 0 });
-      const tryPlay = async () =>
+      const tryPlay = () =>
         fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.deviceId}`, {
           method: "PUT",
           headers: {
@@ -860,62 +834,29 @@ function useSpotifyPlayer(accessToken, ensureToken) {
 
       let response = await tryPlay();
 
+      if (response.status === 404) {
+        // The web player is not registered as the active device yet — claim it once, retry.
+        const transferred = await transferToActiveDevice(state.deviceId);
+        if (!transferred) return false;
+        response = await tryPlay();
+      }
+
       if (!response.ok) {
         const payload = await response.text().catch(() => "");
         const message =
-          response.status === 404
-            ? "Spotify playback device is not active yet."
-            : response.status === 403
-              ? "Spotify playback permission denied."
+          response.status === 403
+            ? "Spotify playback permission denied. Premium is required for web playback."
+            : response.status === 404
+              ? "Spotify playback device not found. Reconnect Spotify and try again."
               : payload || "Spotify could not start this track.";
         setState((current) => ({ ...current, error: message }));
-        return false;
-      }
-
-      let confirmed = await waitForTrackStart(spotifyUri, 3200);
-
-      if (!confirmed) {
-        // Spotify occasionally returns HTTP 204 before the SDK state updates.
-        try {
-          await playerRef.current?.resume();
-          confirmed = await waitForTrackStart(spotifyUri, 3800);
-        } catch {
-          // ignore; we keep using confirmation state only
-        }
-      }
-
-      if (!confirmed) {
-        // Final fallback: call start command without a forced device id.
-        response = await fetch("https://api.spotify.com/v1/me/player/play", {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: playBody,
-        });
-        if (response.ok) {
-          confirmed = await waitForTrackStart(spotifyUri, 3600);
-        } else {
-          const payload = await response.text().catch(() => "");
-          setState((current) => ({ ...current, error: payload || "Could not start Spotify playback." }));
-          return false;
-        }
-      }
-
-      if (!confirmed) {
-        const fallbackText = spotifyUri ? "Could not confirm track playback on this device." : "";
-        setState((current) => ({
-          ...current,
-          error: `${fallbackText} Start again after reconnecting Spotify if this persists.`,
-        }));
         return false;
       }
 
       setState((current) => ({ ...current, error: "" }));
       return true;
     },
-    [ensureToken, state.deviceId, waitForTrackStart, transferToActiveDevice],
+    [ensureToken, state.deviceId, transferToActiveDevice],
   );
 
   const pause = useCallback(async () => {
@@ -2493,6 +2434,7 @@ export default function App() {
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [tasteOnboardingComplete, setTasteOnboardingComplete] = useState(false);
   const youtubeFrameRef = useRef(null);
+  const playbackRequestRef = useRef(0);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
   const physiologyWindowRef = useRef([]);
@@ -2671,7 +2613,24 @@ export default function App() {
     }
   }
 
+  async function startPlayback(song) {
+    const requestId = playbackRequestRef.current + 1;
+    playbackRequestRef.current = requestId;
+
+    // Optimistic UI: the button flips immediately while the play request is in flight.
+    setIsPlaying(true);
+    setPlaybackNotice("");
+
+    const result = await startCurrentTrack(song);
+    if (playbackRequestRef.current !== requestId) return;
+
+    setIsPlaying(result.started);
+    setIsPlaybackActive(result.started);
+    setPlaybackNotice(result.message || "");
+  }
+
   function openRatingPrompt(jumped = false) {
+    playbackRequestRef.current += 1;
     setIsPlaying(false);
     setIsPlaybackActive(false);
     pauseSpotify();
@@ -2763,46 +2722,6 @@ export default function App() {
   }, [currentRating, isPlaybackActive, protocolComplete, ratingPromptOpen, sessionStarted]);
 
   useEffect(() => {
-    if (!sessionStarted || ratingPromptOpen) return;
-
-    let cancelled = false;
-
-    (async () => {
-      if (!isPlaying) {
-        setIsPlaybackActive(false);
-        pauseSpotify();
-        pauseDemoAudio();
-        pauseYouTubeVideo();
-        return;
-      }
-
-      if (isPlaybackActive) {
-        return;
-      }
-
-      const result = await startCurrentTrack(currentSong);
-      if (cancelled) return;
-
-      setIsPlaybackActive(result.started);
-      setIsPlaying(result.started);
-      setPlaybackNotice(result.message || "");
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    currentSong,
-    isPlaying,
-    pauseDemoAudio,
-    pauseSpotify,
-    ratingPromptOpen,
-    sessionStarted,
-    startCurrentTrack,
-    isPlaybackActive,
-  ]);
-
-  useEffect(() => {
     if (ratingPromptOpen) {
       pauseSpotify();
       pauseDemoAudio();
@@ -2843,10 +2762,15 @@ export default function App() {
     setQueueSeed((value) => value + 19);
     setTrackProgress(0);
     setRatingPromptOpen(false);
-    setIsPlaying(sessionStarted);
     setIsPlaybackActive(false);
     setPlaybackNotice("");
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    if (sessionStarted) {
+      startPlayback(song);
+    } else {
+      setIsPlaying(false);
+    }
   }
 
   function advanceProtocol() {
@@ -3019,6 +2943,7 @@ export default function App() {
     if (!sessionStarted || protocolComplete || ratingPromptOpen) return;
 
     if (isPlaying) {
+      playbackRequestRef.current += 1;
       setIsPlaying(false);
       setIsPlaybackActive(false);
       setPlaybackNotice("");
@@ -3028,10 +2953,7 @@ export default function App() {
       return;
     }
 
-    const result = await startCurrentTrack(currentSong);
-    setIsPlaybackActive(result.started);
-    setIsPlaying(result.started);
-    setPlaybackNotice(result.message || "");
+    await startPlayback(currentSong);
   }
 
   const nextButtonLabel = protocolComplete
