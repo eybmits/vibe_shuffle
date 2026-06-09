@@ -907,7 +907,7 @@ function useSpotifyPlayer(accessToken, ensureToken) {
         const fallbackText = spotifyUri ? "Could not confirm track playback on this device." : "";
         setState((current) => ({
           ...current,
-          error: `${fallbackText} Use the Spotify tab once if playback did not start automatically.`,
+          error: `${fallbackText} Start again after reconnecting Spotify if this persists.`,
         }));
         return false;
       }
