@@ -6,9 +6,11 @@ const PAGE_LIMIT = 50;
 const MAX_LIBRARY_TRACKS = 10000;
 const MAX_PLAYLISTS = 200;
 
+// Display labels follow Russell's circumplex naming; the internal tags and
+// CSV values (happy/relaxed/tense/sad_low) stay stable for analysis scripts.
 export const EMOTION_QUADRANTS = {
   happy: {
-    label: "Happy",
+    label: "Energetic",
     tag: "happy",
     accent: "#34d399",
     valence: 0.82,
@@ -17,7 +19,7 @@ export const EMOTION_QUADRANTS = {
     palette: ["#0f2e25", "#34d399", "#a7f3d0"],
   },
   relaxed: {
-    label: "Relaxed",
+    label: "Calm",
     tag: "relaxed",
     accent: "#22d3ee",
     valence: 0.72,
@@ -35,7 +37,7 @@ export const EMOTION_QUADRANTS = {
     palette: ["#33180a", "#fb923c", "#fed7aa"],
   },
   sad_low: {
-    label: "Sad-low",
+    label: "Melancholic",
     tag: "sad_low",
     accent: "#a78bfa",
     valence: 0.3,

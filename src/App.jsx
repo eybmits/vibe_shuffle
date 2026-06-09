@@ -1502,31 +1502,53 @@ function GhostButton({ children, className = "", ...props }) {
 function MoodMap({ mood }) {
   const x = clamp(mood.valence * 100, 6, 94);
   const y = clamp(100 - mood.energy * 100, 6, 94);
+  const axisLabelClass =
+    "text-[8px] font-semibold uppercase tracking-[0.16em] text-slate-500";
   const quadrantLabelClass =
-    "pointer-events-none absolute text-[9px] font-semibold uppercase tracking-[0.14em] text-white/40";
+    "pointer-events-none absolute text-[9px] font-semibold uppercase tracking-[0.12em] text-white/45";
 
   return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-[#070a18]">
-      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-        <div className="border-b border-r border-white/8 bg-[radial-gradient(circle_at_30%_30%,rgba(251,146,60,0.10),transparent_70%)]" />
-        <div className="border-b border-white/8 bg-[radial-gradient(circle_at_70%_30%,rgba(52,211,153,0.10),transparent_70%)]" />
-        <div className="border-r border-white/8 bg-[radial-gradient(circle_at_30%_70%,rgba(167,139,250,0.12),transparent_70%)]" />
-        <div className="bg-[radial-gradient(circle_at_70%_70%,rgba(34,211,238,0.10),transparent_70%)]" />
+    <div className="w-full">
+      <div className={`${axisLabelClass} mb-1.5 text-center`}>High energy (arousal)</div>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5">
+        <div className={`${axisLabelClass} rotate-180 text-center [writing-mode:vertical-rl]`}>
+          Low valence
+        </div>
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-[#070a18]">
+          <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+            <div className="border-b border-r border-white/8 bg-[radial-gradient(circle_at_30%_30%,rgba(251,146,60,0.10),transparent_70%)]" />
+            <div className="border-b border-white/8 bg-[radial-gradient(circle_at_70%_30%,rgba(52,211,153,0.10),transparent_70%)]" />
+            <div className="border-r border-white/8 bg-[radial-gradient(circle_at_30%_70%,rgba(167,139,250,0.12),transparent_70%)]" />
+            <div className="bg-[radial-gradient(circle_at_70%_70%,rgba(34,211,238,0.10),transparent_70%)]" />
+          </div>
+          <span className={`${quadrantLabelClass} left-2.5 top-2.5`}>
+            {EMOTION_QUADRANTS.tense.label}
+          </span>
+          <span className={`${quadrantLabelClass} right-2.5 top-2.5`}>
+            {EMOTION_QUADRANTS.happy.label}
+          </span>
+          <span className={`${quadrantLabelClass} bottom-2.5 left-2.5`}>
+            {EMOTION_QUADRANTS.sad_low.label}
+          </span>
+          <span className={`${quadrantLabelClass} bottom-2.5 right-2.5`}>
+            {EMOTION_QUADRANTS.relaxed.label}
+          </span>
+          <div
+            className="absolute size-4 rounded-full border-2 border-[#05060f] shadow-[0_0_24px_currentColor] transition-all duration-700"
+            style={{
+              background: mood.accent,
+              color: mood.accent,
+              left: `${x}%`,
+              top: `${y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        </div>
+        <div className={`${axisLabelClass} text-center [writing-mode:vertical-rl]`}>
+          High valence
+        </div>
       </div>
-      <span className={`${quadrantLabelClass} left-3 top-3`}>Tense</span>
-      <span className={`${quadrantLabelClass} right-3 top-3`}>Happy</span>
-      <span className={`${quadrantLabelClass} bottom-3 left-3`}>Sad low</span>
-      <span className={`${quadrantLabelClass} bottom-3 right-3`}>Relaxed</span>
-      <div
-        className="absolute size-4 rounded-full border-2 border-[#05060f] shadow-[0_0_24px_currentColor] transition-all duration-700"
-        style={{
-          background: mood.accent,
-          color: mood.accent,
-          left: `${x}%`,
-          top: `${y}%`,
-          transform: "translate(-50%, -50%)",
-        }}
-      />
+      <div className={`${axisLabelClass} mt-1.5 text-center`}>Low energy (arousal)</div>
     </div>
   );
 }
