@@ -131,6 +131,21 @@ async function fetchPaginated(token, firstUrl, getItems, onItems, maxItems) {
   }
 }
 
+// Cheap permission probe: /me answers 403 for accounts that are not
+// allowlisted in the developer app, before we touch any library endpoint.
+export async function fetchUserProfile(ensureToken) {
+  const token = await ensureToken();
+  if (!token) throw new Error("Spotify login expired. Please reconnect.");
+  const payload = await fetchJson(`${SPOTIFY_API_BASE}/me`, token);
+
+  return {
+    displayName: payload.display_name ?? payload.id ?? "Spotify user",
+    email: payload.email ?? "",
+    id: payload.id ?? "",
+    product: payload.product ?? "",
+  };
+}
+
 export async function fetchUserLibrary(ensureToken, onProgress = () => {}) {
   const token = await ensureToken();
   if (!token) throw new Error("Spotify login expired. Please reconnect.");

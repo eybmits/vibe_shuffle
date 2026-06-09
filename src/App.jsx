@@ -35,6 +35,7 @@ import {
 import {
   EMOTION_QUADRANTS,
   fetchUserLibrary,
+  fetchUserProfile,
   loadFeatureLookup,
   matchTracksToFeatures,
 } from "./spotifyLibrary.js";
@@ -409,6 +410,8 @@ function useSpotifyAuth() {
     const params = new URLSearchParams({
       response_type: "code",
       client_id: SPOTIFY_CLIENT_ID,
+      // Always show the account dialog so a wrong account can be switched.
+      show_dialog: "true",
       scope: [
         "streaming",
         "user-read-email",
@@ -724,7 +727,44 @@ function useSpotifyPlayer(accessToken, ensureToken) {
   };
 }
 
-function useSpotifyLibrary(authenticated, ensureToken) {
+function useSpotifyProfile(authenticated, ensureToken) {
+  const [profile, setProfile] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!authenticated) {
+      setProfile(null);
+      setError("");
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    fetchUserProfile(ensureToken)
+      .then((payload) => {
+        if (cancelled) return;
+        setProfile(payload);
+        setError("");
+      })
+      .catch((profileError) => {
+        if (cancelled) return;
+        setProfile(null);
+        setError(
+          /403/.test(profileError.message)
+            ? "This Spotify account is not authorized for this app. Add it under User Management in the Spotify Developer Dashboard, or switch to the app owner's account."
+            : profileError.message,
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, ensureToken]);
+
+  return { error, profile };
+}
+
+function useSpotifyLibrary(authorized, ensureToken) {
   const [state, setState] = useState({
     error: "",
     matchedTracks: [],
@@ -735,7 +775,11 @@ function useSpotifyLibrary(authenticated, ensureToken) {
   const startedRef = useRef(false);
 
   useEffect(() => {
-    if (!authenticated || startedRef.current) return;
+    if (!authorized) {
+      startedRef.current = false;
+      return;
+    }
+    if (startedRef.current) return;
     startedRef.current = true;
 
     let cancelled = false;
@@ -797,7 +841,7 @@ function useSpotifyLibrary(authenticated, ensureToken) {
     return () => {
       cancelled = true;
     };
-  }, [authenticated, ensureToken]);
+  }, [authorized, ensureToken]);
 
   const retry = useCallback(() => {
     startedRef.current = false;
@@ -1544,6 +1588,7 @@ function SetupScreen({
   onConnectHeartSensor,
   onConnectSpotify,
   onDisconnectHeartSensor,
+  onDisconnectSpotify,
   onStart,
   onStartCamera,
   onStartMockHeartSensor,
@@ -1551,22 +1596,32 @@ function SetupScreen({
   setupReady,
   spotifyAuth,
   spotifyPlayer,
+  spotifyProfile,
 }) {
   const matchedCount = library.matchedTracks.length;
   const enoughTracks = matchedCount >= MIN_MATCHED_TRACKS;
 
-  const spotifyStepComplete = spotifyAuth.authenticated && spotifyPlayer.ready;
+  const accountBlocked = Boolean(spotifyAuth.authenticated && spotifyProfile.error);
+  const spotifyStepComplete =
+    spotifyAuth.authenticated && spotifyPlayer.ready && Boolean(spotifyProfile.profile);
   const libraryStepComplete = library.status === "ready" && enoughTracks;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
 
   const spotifyStatusText = !spotifyAuth.authenticated
     ? spotifyAuth.error || "Sign in with Spotify Premium. Your music plays right in this browser."
-    : spotifyPlayer.ready
-      ? "Spotify player is connected and ready."
-      : spotifyPlayer.error || "Connecting the Spotify player…";
+    : accountBlocked
+      ? spotifyProfile.error
+      : spotifyProfile.profile
+        ? spotifyPlayer.ready
+          ? `Connected as ${spotifyProfile.profile.displayName}${
+              spotifyProfile.profile.email ? ` (${spotifyProfile.profile.email})` : ""
+            }.`
+          : spotifyPlayer.error || "Connecting the Spotify player…"
+        : "Checking account access…";
 
-  const libraryStatusText =
-    library.status === "loading"
+  const libraryStatusText = accountBlocked
+    ? "Waiting for an authorized Spotify account."
+    : library.status === "loading"
       ? `Reading your library… ${library.totalCount} songs found so far.`
       : library.status === "ready"
         ? enoughTracks
@@ -1616,7 +1671,11 @@ function SetupScreen({
               <GhostButton className="shrink-0" onClick={onConnectSpotify}>
                 Connect
               </GhostButton>
-            ) : null}
+            ) : (
+              <GhostButton className="shrink-0" onClick={onDisconnectSpotify}>
+                Switch account
+              </GhostButton>
+            )}
           </div>
         </SetupStep>
 
@@ -1793,7 +1852,11 @@ export default function App() {
   const spotifyPlayerError = spotifyPlayer.error;
   const pauseSpotify = spotifyPlayer.pause;
   const playSpotifyTrack = spotifyPlayer.playTrack;
-  const library = useSpotifyLibrary(spotifyAuth.authenticated, spotifyAuth.ensureToken);
+  const spotifyProfile = useSpotifyProfile(spotifyAuth.authenticated, spotifyAuth.ensureToken);
+  const library = useSpotifyLibrary(
+    spotifyAuth.authenticated && Boolean(spotifyProfile.profile),
+    spotifyAuth.ensureToken,
+  );
   const songs = library.matchedTracks;
   const face = useFaceExpression();
   const physiology = usePhysiologySensor();
@@ -2245,6 +2308,7 @@ export default function App() {
           onConnectHeartSensor={physiology.connectBle}
           onConnectSpotify={spotifyAuth.connect}
           onDisconnectHeartSensor={physiology.disconnect}
+          onDisconnectSpotify={spotifyAuth.disconnect}
           onStart={startSession}
           onStartCamera={face.start}
           onStartMockHeartSensor={physiology.startMock}
@@ -2252,6 +2316,7 @@ export default function App() {
           setupReady={setupReady}
           spotifyAuth={spotifyAuth}
           spotifyPlayer={spotifyPlayer}
+          spotifyProfile={spotifyProfile}
         />
       </main>
     );
