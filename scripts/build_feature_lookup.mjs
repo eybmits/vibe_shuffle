@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { trackNameKey } from "../src/trackKey.js";
+import { artistNameKey, trackNameKey } from "../src/trackKey.js";
 
 const RAW_DATASET_PATH = "data/spotify_tracks_dataset.csv";
 const OUTPUT_JSON_PATH = "public/feature-lookup.json";
@@ -61,6 +61,7 @@ async function main() {
   const rows = parseCsv(await readFile(RAW_DATASET_PATH, "utf8"));
   const ids = {};
   const names = {};
+  const artistSums = new Map();
   let skipped = 0;
 
   for (const row of rows) {
@@ -87,12 +88,34 @@ async function main() {
     const primaryArtist = String(row.artists ?? "").split(";")[0];
     const nameKey = trackNameKey(primaryArtist, row.track_name);
     if (nameKey) names[nameKey] ??= features;
+
+    const artistKey = artistNameKey(primaryArtist);
+    if (artistKey) {
+      const sums = artistSums.get(artistKey) ?? [0, 0, 0, 0];
+      sums[0] += features[0];
+      sums[1] += features[1];
+      sums[2] += features[2];
+      sums[3] += 1;
+      artistSums.set(artistKey, sums);
+    }
+  }
+
+  // Tier-3 fallback: average mood profile per artist for tracks the dataset
+  // does not contain individually.
+  const artists = {};
+  for (const [artistKey, [valenceSum, energySum, instrumentalnessSum, count]] of artistSums) {
+    artists[artistKey] = [
+      round2(valenceSum / count),
+      round2(energySum / count),
+      round2(instrumentalnessSum / count),
+    ];
   }
 
   await mkdir(path.dirname(OUTPUT_JSON_PATH), { recursive: true });
-  await writeFile(OUTPUT_JSON_PATH, JSON.stringify({ ids, names }));
+  await writeFile(OUTPUT_JSON_PATH, JSON.stringify({ ids, names, artists }));
   console.log(
-    `Wrote ${Object.keys(ids).length} ids and ${Object.keys(names).length} name keys to ${OUTPUT_JSON_PATH} (${skipped} rows skipped).`,
+    `Wrote ${Object.keys(ids).length} ids, ${Object.keys(names).length} name keys, ` +
+      `${Object.keys(artists).length} artist keys to ${OUTPUT_JSON_PATH} (${skipped} rows skipped).`,
   );
 }
 

@@ -19,3 +19,7 @@ export function trackNameKey(artist, title) {
   if (!normalizedArtist || !normalizedTitle) return null;
   return `${normalizedArtist}|${normalizedTitle}`;
 }
+
+export function artistNameKey(artist) {
+  return normalizePart(artist) || null;
+}

@@ -1,4 +1,4 @@
-import { trackNameKey } from "./trackKey.js";
+import { artistNameKey, trackNameKey } from "./trackKey.js";
 
 const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
 const PAGE_LIMIT = 50;
@@ -53,7 +53,7 @@ export function quadrantFromAxes(valence, energy) {
 
 // Bump when the lookup format changes — busts browser/CDN caches of the
 // same-named JSON file.
-const FEATURE_LOOKUP_VERSION = "2";
+const FEATURE_LOOKUP_VERSION = "3";
 
 let featureLookupPromise = null;
 
@@ -178,11 +178,23 @@ export async function fetchUserLibrary(ensureToken, onProgress = () => {}) {
 export function matchTracksToFeatures(tracks, lookup) {
   const ids = lookup.ids ?? lookup;
   const names = lookup.names ?? {};
+  const artists = lookup.artists ?? {};
   const matched = [];
 
   for (const track of tracks) {
     const nameKey = trackNameKey(track.primaryArtist || track.artist, track.title);
-    const features = ids[track.spotifyId] ?? (nameKey ? names[nameKey] : undefined);
+    const artistKey = artistNameKey(track.primaryArtist || track.artist);
+
+    let features = ids[track.spotifyId];
+    let categorySource = "lookup_id";
+    if (!features && nameKey) {
+      features = names[nameKey];
+      categorySource = "lookup_name";
+    }
+    if (!features && artistKey) {
+      features = artists[artistKey];
+      categorySource = "lookup_artist_mean";
+    }
     if (!features) continue;
 
     const [valence, energy, instrumentalness] = features;
@@ -195,6 +207,7 @@ export function matchTracksToFeatures(tracks, lookup) {
       energy,
       instrumentalness: instrumentalness ?? 0,
       quadrant,
+      categorySource,
       accent: style.accent,
       palette: style.palette,
     });
