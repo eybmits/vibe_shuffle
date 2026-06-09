@@ -738,6 +738,30 @@ function useSpotifyPlayer(accessToken, ensureToken) {
     };
   }, [accessToken, ensureToken]);
 
+  const waitForTrackStart = useCallback(async (expectedUri, timeoutMs = 2200) => {
+    if (!playerRef.current) return false;
+
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+      const state = await playerRef.current.getCurrentState();
+
+      if (
+        state &&
+        !state.paused &&
+        state.track_window?.current_track?.uri === expectedUri
+      ) {
+        return true;
+      }
+
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 120);
+      });
+    }
+
+    return false;
+  }, []);
+
   const playTrack = useCallback(
     async (spotifyUri) => {
       if (!spotifyUri || !state.deviceId) return false;
@@ -765,10 +789,19 @@ function useSpotifyPlayer(accessToken, ensureToken) {
         return false;
       }
 
+      const confirmed = await waitForTrackStart(spotifyUri);
+      if (!confirmed) {
+        setState((current) => ({
+          ...current,
+          error: "Could not confirm Spotify playback start on this device. Start failed.",
+        }));
+        return false;
+      }
+
       setState((current) => ({ ...current, error: "" }));
       return true;
     },
-    [ensureToken, state.deviceId],
+    [ensureToken, state.deviceId, waitForTrackStart],
   );
 
   const pause = useCallback(async () => {
@@ -1598,18 +1631,6 @@ function getTrackPlaybackMode(song, catalogUsesSpotifyEmbed = false) {
   return "demo";
 }
 
-function buildSpotifyEmbedSrc(song, autoplay = false) {
-  const spotifyId = song.spotifyId ?? song.spotifyUri?.split(":").pop();
-  if (!spotifyId) return null;
-  const url = new URL(`https://open.spotify.com/embed/track/${spotifyId}`);
-  url.searchParams.set("utm_source", "generator");
-  url.searchParams.set("theme", "0");
-  if (autoplay) {
-    url.searchParams.set("autoplay", "1");
-  }
-  return url.toString();
-}
-
 function YouTubeMedia({ isPlaying, onReadyPlay, song, youtubeFrameRef }) {
   const src = buildYouTubeEmbedSrc(song);
   const mediaClass =
@@ -1632,42 +1653,6 @@ function YouTubeMedia({ isPlaying, onReadyPlay, song, youtubeFrameRef }) {
       />
       <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-[#020712]/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
         YouTube
-      </div>
-    </div>
-  );
-}
-
-function SpotifyEmbedMedia({ isPlaying, song }) {
-  const src = buildSpotifyEmbedSrc(song, isPlaying);
-  const mediaClass =
-    "relative mx-auto aspect-square w-full max-w-[min(62vw,240px)] overflow-hidden rounded-lg border border-white/14 bg-[#020712] shadow-[0_24px_70px_rgba(0,0,0,0.38)] sm:max-w-[260px] md:max-w-[280px] lg:max-w-[240px] xl:max-w-[190px]";
-
-  if (!src) return null;
-
-  return (
-    <div className={mediaClass}>
-      {isPlaying ? (
-        <iframe
-          key={`${song.id}-spotify-${isPlaying}`}
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          className="absolute inset-0 h-full w-full"
-          loading="eager"
-          src={src}
-          title={`${song.title} on Spotify`}
-        />
-      ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[linear-gradient(135deg,rgba(50,230,200,0.18),rgba(2,7,18,0.82))] px-6 text-center">
-          <Music2 className="size-9 text-[#32e6c8]" />
-          <div>
-            <div className="text-sm font-semibold text-white">Spotify player ready</div>
-            <div className="mt-1 text-xs leading-5 text-[#9db0c4]">
-              Press Start music to load the embedded track.
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="pointer-events-none absolute left-2 top-2 rounded-full bg-[#020712]/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-        Spotify
       </div>
     </div>
   );
@@ -1729,15 +1714,6 @@ function MediaStage({
         onReadyPlay={onReadyPlay}
         song={song}
         youtubeFrameRef={youtubeFrameRef}
-      />
-    );
-  }
-
-  if (getSpotifyTrackUri(song)) {
-    return (
-      <SpotifyEmbedMedia
-        isPlaying={isPlaying}
-        song={song}
       />
     );
   }
