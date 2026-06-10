@@ -356,6 +356,9 @@ function useSpotifyAuth() {
       accessToken: payload.access_token,
       refreshToken: payload.refresh_token ?? tokenRef.current?.refreshToken ?? null,
       expiresAt: Date.now() + Number(payload.expires_in ?? 3600) * 1000,
+      // Spotify returns the actually-granted scopes here — keep them so we can
+      // detect a login that is missing library access.
+      scope: payload.scope ?? tokenRef.current?.scope ?? "",
     };
     writeStoredToken(nextToken);
     setToken(nextToken);
@@ -489,6 +492,8 @@ function useSpotifyAuth() {
     disconnect,
     ensureToken,
     error,
+    grantedScope: token?.scope ?? "",
+    hasLibraryScope: (token?.scope ?? "").includes("user-library-read"),
     status,
   };
 }
@@ -1696,8 +1701,10 @@ function SetupScreen({
         ? "Spotify player is connected and ready."
         : spotifyPlayer.error || "Connecting the Spotify player…";
 
-  const libraryStatusText =
-    library.status === "loading"
+  const missingLibraryScope = spotifyAuth.authenticated && !spotifyAuth.hasLibraryScope;
+  const libraryStatusText = missingLibraryScope
+    ? "Your Spotify login is missing library permission. Click Switch account, then approve the 'access your library / saved content' permission on Spotify's screen."
+    : library.status === "loading"
       ? `${library.phase || "Reading your library"}… ${library.totalCount} songs so far.`
       : library.status === "ready"
         ? enoughTracks
@@ -1706,7 +1713,7 @@ function SetupScreen({
         : library.status === "error"
           ? library.error
           : spotifyAuth.authenticated
-            ? "Ready to read your saved songs and playlists."
+            ? "Ready to read your saved songs and playlists. Click 'Load my songs'."
             : "Connects after the Spotify sign-in.";
 
   const physiologyStatusText =
@@ -1760,13 +1767,17 @@ function SetupScreen({
         <SetupStep complete={libraryStepComplete} index={2} title="Your music, mood-mapped">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-2">
-              {library.status === "loading" ? (
+              {library.status === "loading" && !missingLibraryScope ? (
                 <Loader2 className="size-4 shrink-0 animate-spin text-cyan-300" />
               ) : null}
               {libraryStatusText}
             </span>
-            {spotifyAuth.authenticated &&
-            (library.status === "idle" || library.status === "error") ? (
+            {missingLibraryScope ? (
+              <GhostButton className="shrink-0" onClick={onDisconnectSpotify}>
+                Switch account
+              </GhostButton>
+            ) : spotifyAuth.authenticated &&
+              (library.status === "idle" || library.status === "error") ? (
               <GhostButton className="shrink-0" onClick={library.load}>
                 {library.status === "error" ? "Retry" : "Load my songs"}
               </GhostButton>
