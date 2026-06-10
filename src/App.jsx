@@ -730,6 +730,7 @@ function useSpotifyPlayer(accessToken, ensureToken) {
 function useSpotifyProfile(authenticated, ensureToken) {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!authenticated) {
@@ -739,8 +740,18 @@ function useSpotifyProfile(authenticated, ensureToken) {
     }
 
     let cancelled = false;
+    setProfile(null);
+    setError("");
 
-    fetchUserProfile(ensureToken)
+    // Never let the account probe hang the setup screen on "Checking…".
+    const timeout = new Promise((_, reject) =>
+      window.setTimeout(
+        () => reject(new Error("Spotify did not respond in time. Check your connection and retry.")),
+        12000,
+      ),
+    );
+
+    Promise.race([fetchUserProfile(ensureToken), timeout])
       .then((payload) => {
         if (cancelled) return;
         setProfile(payload);
@@ -751,7 +762,7 @@ function useSpotifyProfile(authenticated, ensureToken) {
         setProfile(null);
         setError(
           /403/.test(profileError.message)
-            ? "This Spotify account is not authorized for this app. Add it under User Management in the Spotify Developer Dashboard, or switch to the app owner's account."
+            ? "This Spotify account isn't approved for this app yet. The study organizer must add your account email under User Management in the Spotify Developer Dashboard."
             : profileError.message,
         );
       });
@@ -759,9 +770,11 @@ function useSpotifyProfile(authenticated, ensureToken) {
     return () => {
       cancelled = true;
     };
-  }, [authenticated, ensureToken]);
+  }, [authenticated, ensureToken, attempt]);
 
-  return { error, profile };
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+
+  return { error, profile, retry };
 }
 
 function useSpotifyLibrary(authorized, ensureToken) {
@@ -1729,9 +1742,12 @@ function SetupScreen({
                 Connect
               </GhostButton>
             ) : (
-              <GhostButton className="shrink-0" onClick={onDisconnectSpotify}>
-                Switch account
-              </GhostButton>
+              <div className="flex shrink-0 gap-2">
+                {accountBlocked ? (
+                  <GhostButton onClick={spotifyProfile.retry}>Retry</GhostButton>
+                ) : null}
+                <GhostButton onClick={onDisconnectSpotify}>Switch account</GhostButton>
+              </div>
             )}
           </div>
         </SetupStep>
