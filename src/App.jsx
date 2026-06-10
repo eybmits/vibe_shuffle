@@ -592,10 +592,11 @@ function useSpotifyPlayer(accessToken, ensureToken) {
         player.addListener("authentication_error", ({ message }) => {
           setState((current) => ({ ...current, error: message, status: "error" }));
         });
-        player.addListener("account_error", ({ message }) => {
+        player.addListener("account_error", () => {
           setState((current) => ({
             ...current,
-            error: message || "Spotify Premium is required for web playback.",
+            error:
+              "Spotify playback was rejected. This account needs Spotify Premium AND must be added under User Management in the app's Spotify Developer Dashboard.",
             status: "error",
           }));
         });
