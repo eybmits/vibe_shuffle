@@ -42,7 +42,7 @@ import {
 } from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
-const LISTENING_WINDOW_SECONDS = 30;
+const LISTENING_WINDOW_SECONDS = 60;
 const MIN_MATCHED_TRACKS = 10;
 const MEDIAPIPE_VERSION = "0.10.35";
 
@@ -201,7 +201,9 @@ function downloadCsv(ratings, protocolId) {
 
 function formatSeconds(seconds) {
   const safeSeconds = Math.max(0, Math.ceil(seconds));
-  return `0:${String(safeSeconds).padStart(2, "0")}`;
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
 function createSmoothPath(points) {
