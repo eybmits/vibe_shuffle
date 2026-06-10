@@ -94,9 +94,22 @@ function normalizeApiTrack(track, sourceLabel) {
 }
 
 async function fetchJson(url, token) {
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Spotify request timed out after 15s.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (response.status === 429) {
     const retryAfter = Number(response.headers.get("Retry-After") ?? 1);
@@ -149,15 +162,23 @@ export async function fetchUserProfile(ensureToken) {
 }
 
 export async function fetchUserLibrary(ensureToken, onProgress = () => {}) {
-  const token = await ensureToken();
-  if (!token) throw new Error("Spotify login expired. Please reconnect.");
-
   const tracksById = new Map();
   let playlistCount = 0;
-
-  let phase = "Reading saved songs";
+  let phase = "Authorizing";
 
   const report = () => onProgress({ phase, playlistCount, trackCount: tracksById.size });
+
+  report();
+  const token = await Promise.race([
+    ensureToken(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Spotify token refresh timed out.")), 12000),
+    ),
+  ]);
+  if (!token) throw new Error("Spotify login expired. Please reconnect.");
+
+  phase = "Reading saved songs";
+  report();
 
   const addTracks = (apiTracks, sourceLabel) => {
     for (const apiTrack of apiTracks) {
