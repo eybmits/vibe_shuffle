@@ -788,15 +788,12 @@ function useSpotifyLibrary(authorized, ensureToken) {
     status: "idle",
     totalCount: 0,
   });
-  const startedRef = useRef(false);
+  const [loadCount, setLoadCount] = useState(0);
 
   useEffect(() => {
-    if (!authorized) {
-      startedRef.current = false;
-      return;
-    }
-    if (startedRef.current) return;
-    startedRef.current = true;
+    // Manual trigger only: never fire API calls on page load / reload, so a
+    // rate limit can't be kept alive by the app re-requesting on every render.
+    if (!authorized || loadCount === 0) return undefined;
 
     let cancelled = false;
 
@@ -850,7 +847,6 @@ function useSpotifyLibrary(authorized, ensureToken) {
         });
       } catch (error) {
         if (cancelled) return;
-        startedRef.current = false;
         setState((current) => ({
           ...current,
           error: error.message ?? "Your Spotify library could not be loaded.",
@@ -862,14 +858,19 @@ function useSpotifyLibrary(authorized, ensureToken) {
     return () => {
       cancelled = true;
     };
-  }, [authorized, ensureToken]);
+  }, [authorized, ensureToken, loadCount]);
 
-  const retry = useCallback(() => {
-    startedRef.current = false;
-    setState((current) => ({ ...current, error: "", status: "idle" }));
-  }, []);
+  // Reset back to idle when the account disconnects.
+  useEffect(() => {
+    if (!authorized) {
+      setLoadCount(0);
+      setState((current) => ({ ...current, error: "", status: "idle", totalCount: 0 }));
+    }
+  }, [authorized]);
 
-  return { ...state, retry };
+  const load = useCallback(() => setLoadCount((value) => value + 1), []);
+
+  return { ...state, load };
 }
 
 function cameraErrorMessage(error) {
@@ -1710,7 +1711,9 @@ function SetupScreen({
           ? accountBlocked
             ? "This Spotify account isn't approved for this app yet. The study organizer must add your account email under User Management in the Spotify Developer Dashboard."
             : library.error
-          : "Connects automatically after the Spotify sign-in.";
+          : spotifyAuth.authenticated
+            ? "Ready to read your saved songs and playlists."
+            : "Connects after the Spotify sign-in.";
 
   const physiologyStatusText =
     physiology.status === "ready"
@@ -1768,9 +1771,10 @@ function SetupScreen({
               ) : null}
               {libraryStatusText}
             </span>
-            {library.status === "error" ? (
-              <GhostButton className="shrink-0" onClick={library.retry}>
-                Retry
+            {spotifyAuth.authenticated &&
+            (library.status === "idle" || library.status === "error") ? (
+              <GhostButton className="shrink-0" onClick={library.load}>
+                {library.status === "error" ? "Retry" : "Load my songs"}
               </GhostButton>
             ) : null}
           </div>
