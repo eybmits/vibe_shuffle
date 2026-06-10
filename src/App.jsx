@@ -49,7 +49,9 @@ const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
 const SPOTIFY_REDIRECT_URI =
   import.meta.env.VITE_SPOTIFY_REDIRECT_URI ??
   (typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : "");
-const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v2";
+// Bump to force a fresh login whenever the requested OAuth scopes change, so
+// stored tokens can never lack newly required permissions (e.g. library read).
+const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v3";
 
 const RATING_LABELS = {
   1: "Bad fit",
