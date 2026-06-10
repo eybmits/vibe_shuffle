@@ -804,9 +804,11 @@ function useSpotifyLibrary(authorized, ensureToken) {
       try {
         setState((current) => ({ ...current, error: "", status: "loading" }));
 
-        const [lookup, tracks] = await Promise.all([
-          loadFeatureLookup(),
-          fetchUserLibrary(ensureToken, ({ trackCount, playlistCount, phase }) => {
+        // 1) Read the library first and show its count — this is independent of
+        //    the large feature lookup, so a slow lookup can't freeze it at 0.
+        const tracks = await fetchUserLibrary(
+          ensureToken,
+          ({ trackCount, playlistCount, phase }) => {
             if (cancelled) return;
             setState((current) => ({
               ...current,
@@ -814,8 +816,17 @@ function useSpotifyLibrary(authorized, ensureToken) {
               playlistCount,
               totalCount: trackCount,
             }));
-          }),
-        ]);
+          },
+        );
+        if (cancelled) return;
+
+        // 2) Then load the mood database and match (heavy parse happens here).
+        setState((current) => ({
+          ...current,
+          phase: "Mood-mapping your songs",
+          totalCount: tracks.length,
+        }));
+        const lookup = await loadFeatureLookup();
         if (cancelled) return;
 
         if (!lookup.names) {
@@ -829,17 +840,10 @@ function useSpotifyLibrary(authorized, ensureToken) {
           `[vibe-shuffle] library: ${tracks.length} tracks, ${matchedTracks.length} matched ` +
             `(lookup: ${Object.keys(lookup.ids ?? {}).length} ids, ${Object.keys(lookup.names ?? {}).length} names)`,
         );
-        if (matchedTracks.length < tracks.length) {
-          const matchedIds = new Set(matchedTracks.map((track) => track.spotifyId));
-          const unmatchedSamples = tracks
-            .filter((track) => !matchedIds.has(track.spotifyId))
-            .slice(0, 5)
-            .map((track) => `${track.artist} — ${track.title}`);
-          console.info("[vibe-shuffle] unmatched samples:", unmatchedSamples);
-        }
         setState({
           error: "",
           matchedTracks,
+          phase: "",
           playlistCount: 0,
           status: "ready",
           totalCount: tracks.length,
