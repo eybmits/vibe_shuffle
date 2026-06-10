@@ -80,7 +80,7 @@ test("normalizes arousal against personal baseline", () => {
   assert.ok(summary.physiology_arousal > 0.85);
 });
 
-test("arousal uses equal HR RMSSD and SDNN weights", () => {
+test("arousal uses HR and RMSSD only, with SDNN still reported", () => {
   const baseline = {
     hr_mad: 10,
     median_hr_bpm: 70,
@@ -91,12 +91,12 @@ test("arousal uses equal HR RMSSD and SDNN weights", () => {
   };
   const rr = Array.from({ length: 40 }, (_, index) => (index % 2 ? 710 : 690));
   const summary = summarizePhysiologyMeasurements(measurementsFromRr(rr, 80), baseline);
-  const expected =
-    0.5 +
-    (summary.z_hr + summary.z_rmssd + summary.z_sdnn) * PHYSIOLOGY_AROUSAL_WEIGHT;
+  const expected = 0.5 + (summary.z_hr + summary.z_rmssd) * PHYSIOLOGY_AROUSAL_WEIGHT;
 
   approx(summary.z_hr, 1);
   approx(summary.physiology_arousal, expected);
+  // SDNN is still computed and logged for analysis, just not fed into arousal.
+  assert.ok(Number.isFinite(summary.z_sdnn));
 });
 
 test("neutral face plus high HR and low HRV maps to tense", () => {

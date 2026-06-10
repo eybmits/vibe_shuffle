@@ -1,10 +1,14 @@
-export const PHYSIOLOGY_BASELINE_SECONDS = 60;
+// 120 s neutral baseline: long enough for a stable RMSSD reference and to ride
+// out the settling period, while staying practical for participants.
+export const PHYSIOLOGY_BASELINE_SECONDS = 120;
 export const PHYSIOLOGY_WINDOW_MS = 60_000;
 export const MIN_HRV_RR_COUNT = 20;
 export const VALID_RR_MIN_MS = 300;
 export const VALID_RR_MAX_MS = 2000;
 export const ECTOPIC_DELTA_RATIO = 0.3;
-export const PHYSIOLOGY_AROUSAL_WEIGHT = 0.15;
+// Arousal is driven by HR (up) and RMSSD (down) only. SDNN needs ~5 min to be
+// valid, so it is still logged but excluded from the short-window estimate.
+export const PHYSIOLOGY_AROUSAL_WEIGHT = 0.22;
 
 const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -219,10 +223,7 @@ export function summarizePhysiologyMeasurements(
       : null;
   const physiologyArousal =
     quality === "good" && baseline
-      ? clamp(
-          0.5 +
-            ((zHr ?? 0) + (zRmssd ?? 0) + (zSdnn ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT,
-        )
+      ? clamp(0.5 + ((zHr ?? 0) + (zRmssd ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT)
       : null;
 
   return {
