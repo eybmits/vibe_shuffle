@@ -1675,12 +1675,38 @@ function SetupScreen({
 
   return (
     <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center gap-10 px-4 py-12 sm:px-6">
-      <div className="flex flex-col items-center gap-8 text-center">
-        <BrandMark compact />
-        <div>
+      <div className="flex flex-col items-center gap-7 text-center">
+        <div className="animate-fade-up" style={{ animationDelay: "0ms" }}>
+          <BrandMark compact />
+        </div>
+
+        <div
+          className="flex h-16 items-end gap-1.5 animate-fade-up animate-float sm:h-20"
+          style={{ animationDelay: "120ms" }}
+          aria-hidden="true"
+        >
+          {[0.6, 1, 0.45, 0.85, 1.1, 0.5, 0.95, 0.7, 1.05, 0.55, 0.8].map((scale, index) => (
+            <span
+              className="w-2 origin-bottom rounded-full bg-gradient-to-t from-cyan-400/60 to-violet-400/90 sm:w-2.5"
+              key={index}
+              style={{
+                height: "100%",
+                animation: `eq ${1.1 + (index % 4) * 0.25}s ease-in-out ${index * 0.08}s infinite`,
+                transform: `scaleY(${scale * 0.5})`,
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="animate-fade-up" style={{ animationDelay: "220ms" }}>
           <h1 className="mx-auto max-w-2xl text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl">
             Music{" "}
-            <span className={ACCENT_TEXT_GRADIENT}>tuned to your state of mind.</span>
+            <span
+              className={`${ACCENT_TEXT_GRADIENT} animate-shimmer`}
+              style={{ backgroundSize: "220% 220%" }}
+            >
+              tuned to your state of mind.
+            </span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-slate-400">
             Two short listening blocks from a curated set of {songCount} tracks. Your expression and
@@ -1689,7 +1715,7 @@ function SetupScreen({
         </div>
       </div>
 
-      <div className="grid gap-3">
+      <div className="grid gap-3 animate-fade-up" style={{ animationDelay: "340ms" }}>
         <SetupStep complete={spotifyStepComplete} index={1} title="Connect Spotify">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{spotifyStatusText}</span>
@@ -1755,8 +1781,15 @@ function SetupScreen({
         </SetupStep>
       </div>
 
-      <div className="flex flex-col items-center gap-4">
-        <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
+      <div
+        className="flex flex-col items-center gap-4 animate-fade-up"
+        style={{ animationDelay: "460ms" }}
+      >
+        <PrimaryButton
+          className={`w-full sm:w-auto sm:min-w-64 ${setupReady ? "animate-glow-pulse" : ""}`}
+          disabled={!setupReady}
+          onClick={onStart}
+        >
           Begin session
           <SkipForward className="size-4" />
         </PrimaryButton>
