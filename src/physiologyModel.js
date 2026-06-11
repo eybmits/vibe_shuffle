@@ -255,37 +255,46 @@ export function fuseEmotionSignals(faceSummary, physiologySummary) {
   const faceConfidence = Number(faceSummary?.confidence ?? 0);
   const physiologyArousal = physiologySummary?.physiology_arousal;
 
-  if (!facePresent) {
+  // ECG owns the arousal axis and works independently of the camera: even with
+  // no face, a usable ECG still drives energy up AND down. Only fall back to
+  // the neutral centre when there is neither a face nor a usable ECG.
+  if (!facePresent && !physiologyUsable) {
     return {
       confidence: 0,
       energy: 0.5,
       facePresent: false,
       physiologyArousal: physiologyArousal ?? null,
       physiologyQuality: physiologySummary?.physiology_quality ?? "inactive",
-      selectionSignalSource: "no_face_center",
+      selectionSignalSource: "no_signal_center",
       tag: "relaxed",
       valence: 0.5,
     };
   }
 
-  const valence = clamp(Number(faceSummary?.valence ?? 0.5));
-  // Without usable ECG the face channel still carries arousal (head motion).
+  // Face provides valence; without a face, valence stays neutral.
+  const valence = facePresent ? clamp(Number(faceSummary?.valence ?? 0.5)) : 0.5;
+  // Arousal: usable ECG (both directions) takes precedence; otherwise the face
+  // channel (head motion) carries it.
   const energy = physiologyUsable
     ? clamp(physiologyArousal)
     : clamp(Number(faceSummary?.energy ?? 0.5));
   const tag = physiologyUsable ? quadrantFromAxes(valence, energy) : faceTag;
 
+  const selectionSignalSource = physiologyUsable
+    ? facePresent
+      ? "face_window_plus_ecg_arousal"
+      : "ecg_arousal_only"
+    : "window_average";
+
   return {
     confidence: physiologyUsable
-      ? clamp((faceConfidence + Math.min(1, physiologySummary.rr_count / 40)) / 2)
+      ? clamp(((facePresent ? faceConfidence : 0) + Math.min(1, physiologySummary.rr_count / 40)) / 2)
       : faceConfidence,
     energy,
-    facePresent: true,
+    facePresent,
     physiologyArousal: physiologyArousal ?? null,
     physiologyQuality: physiologySummary?.physiology_quality ?? "inactive",
-    selectionSignalSource: physiologyUsable
-      ? "face_window_plus_ecg_arousal"
-      : "window_average",
+    selectionSignalSource,
     tag,
     valence,
   };

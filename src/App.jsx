@@ -7,7 +7,6 @@ import {
   Clock3,
   Download,
   HeartPulse,
-  Loader2,
   Music2,
   Pause,
   Play,
@@ -32,18 +31,10 @@ import {
   parseHeartRateMeasurement,
   summarizePhysiologyMeasurements,
 } from "./physiologyModel.js";
-import {
-  EMOTION_QUADRANTS,
-  buildDemoLibrary,
-  fetchUserLibrary,
-  fetchUserProfile,
-  loadFeatureLookup,
-  matchTracksToFeatures,
-} from "./spotifyLibrary.js";
+import { EMOTION_QUADRANTS, buildDemoLibrary } from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 60;
-const MIN_MATCHED_TRACKS = 10;
 const MEDIAPIPE_VERSION = "0.10.35";
 
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
@@ -54,31 +45,27 @@ const SPOTIFY_REDIRECT_URI =
 // stored tokens can never lack newly required permissions (e.g. library read).
 const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v3";
 
-const RATING_LABELS = {
-  1: "Bad fit",
-  2: "Okay",
-  3: "Good fit",
+const RATING_SCORES = [1, 2, 3, 4, 5, 6, 7];
+
+// Two separate 7-point Likert questions per track, asked in sequence.
+const LIKING_QUESTION = {
+  key: "rating_like_1_to_7",
+  title: "How much do you like this song?",
+  lowLabel: "Don't like it",
+  highLabel: "Love it",
+};
+const FIT_QUESTION = {
+  key: "rating_fit_1_to_7",
+  title: "How well did it fit your current mood?",
+  lowLabel: "Not at all",
+  highLabel: "Perfect fit",
 };
 
-const RATING_OPTIONS = [
-  {
-    description: "Did not fit my mood.",
-    label: RATING_LABELS[1],
-    score: 1,
-  },
-  {
-    description: "Neither good nor bad.",
-    label: RATING_LABELS[2],
-    score: 2,
-  },
-  {
-    description: "Fit my mood well.",
-    label: RATING_LABELS[3],
-    score: 3,
-  },
-];
+const BLOCK_COUNT = 2;
 
-const PROTOCOL_BLOCKS = [{ mode: "random" }, { mode: "vibe" }];
+function randomBlockOrder() {
+  return Math.random() < 0.5 ? ["random", "vibe"] : ["vibe", "random"];
+}
 
 const GLASS_CARD =
   "rounded-3xl border border-white/10 bg-white/[0.04] shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl";
@@ -111,78 +98,37 @@ function csvEscape(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-function ratingsToCsv(ratings) {
-  const columns = [
-    "protocol_id",
-    "timestamp",
-    "selected_genres",
-    "selected_genre_labels",
-    "block_number",
-    "block_mode",
-    "track_number",
-    "listening_window_seconds",
-    "jumped_to_rating",
-    "song_id",
-    "song_source",
-    "jamendo_id",
-    "spotify_id",
-    "spotify_uri",
-    "song_title",
-    "artist",
-    "album",
-    "song_track_genre",
-    "song_track_genre_label",
-    "song_popularity",
-    "song_quadrant",
-    "song_valence",
-    "song_arousal",
-    "song_instrumentalness",
-    "song_speechiness",
-    "song_category_source",
-    "song_analysis_confidence",
-    "song_external_url",
-    "song_license_url",
-    "youtube_video_id",
-    "youtube_url",
-    "youtube_search_url",
-    "detected_expression",
-    "detected_expression_label",
-    "detected_valence",
-    "detected_arousal",
-    "expression_confidence",
-    "face_present",
-    "window_expression",
-    "window_expression_confidence",
-    "window_sample_count",
-    "mean_happy",
-    "mean_relaxed",
-    "mean_tense",
-    "mean_sad_low",
-    "ecg_connected",
-    "physiology_quality",
-    "hr_bpm_mean",
-    "rr_count",
-    "rr_artifact_rate",
-    "rmssd_ms",
-    "sdnn_ms",
-    "pnn20",
-    "baseline_hr_bpm",
-    "baseline_rmssd_ms",
-    "z_hr",
-    "z_rmssd",
-    "z_sdnn",
-    "physiology_arousal",
-    "fusion_valence",
-    "fusion_arousal",
-    "selection_signal_source",
-    "rating_1_to_3",
-  ];
+// Only the columns needed to validate Vibe vs Random mood-fit.
+const CSV_COLUMNS = [
+  "protocol_id",
+  "timestamp",
+  "block_order",
+  "block_number",
+  "block_mode",
+  "track_number",
+  "song_id",
+  "spotify_id",
+  "song_title",
+  "artist",
+  "song_quadrant",
+  "song_valence",
+  "song_arousal",
+  "face_present",
+  "ecg_connected",
+  "physiology_quality",
+  "detected_valence",
+  "detected_arousal",
+  "physiology_arousal",
+  "rating_like_1_to_7",
+  "rating_fit_1_to_7",
+];
 
+function ratingsToCsv(ratings) {
   const rows = ratings.map((rating) =>
-    columns.map((column) => csvEscape(rating[column])).join(","),
+    CSV_COLUMNS.map((column) => csvEscape(rating[column])).join(","),
   );
 
-  return [columns.join(","), ...rows].join("\n");
+  return [CSV_COLUMNS.join(","), ...rows].join("\n");
 }
 
 function downloadCsv(ratings, protocolId) {
@@ -1187,10 +1133,14 @@ function useFaceExpression() {
 }
 
 function createMockHeartRateMeasurement(index) {
-  const phase = index / 6;
-  const heartRateBpm = Math.round(73 + Math.sin(phase) * 3 + Math.sin(index / 17) * 2);
+  // Slow ~31s wave swinging clearly above and below the ~73 bpm baseline, so the
+  // demo arousal moves both up and down (not just up). Variability is coupled
+  // inversely to heart rate (high HR → low RMSSD → high arousal, and vice versa).
+  const wave = Math.sin(index / 5);
+  const heartRateBpm = Math.round(73 + wave * 16);
   const baseRr = 60000 / heartRateBpm;
-  const rrIntervalsMs = [baseRr + Math.sin(index / 3) * 22, baseRr - Math.cos(index / 4) * 18];
+  const spread = 6 + 30 * (1 - wave); // small spread at high HR, large at low HR
+  const rrIntervalsMs = [baseRr + spread, baseRr - spread];
 
   return {
     heartRateBpm,
@@ -1685,7 +1635,6 @@ function SetupStep({ children, complete, index, title }) {
 function SetupScreen({
   cameraReady,
   face,
-  library,
   onConnectHeartSensor,
   onConnectSpotify,
   onDisconnectHeartSensor,
@@ -1695,43 +1644,18 @@ function SetupScreen({
   onStartMockHeartSensor,
   physiology,
   setupReady,
+  songCount,
   spotifyAuth,
   spotifyPlayer,
-  spotifyProfile,
 }) {
-  const matchedCount = library.matchedTracks.length;
-  const enoughTracks = matchedCount >= MIN_MATCHED_TRACKS;
-
   const spotifyStepComplete = spotifyAuth.authenticated && spotifyPlayer.ready;
-  const libraryStepComplete = library.status === "ready" && enoughTracks;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
 
   const spotifyStatusText = !spotifyAuth.authenticated
     ? spotifyAuth.error || "Sign in with Spotify Premium. Your music plays right in this browser."
-    : spotifyProfile.profile
-      ? spotifyPlayer.ready
-        ? `Connected as ${spotifyProfile.profile.displayName}${
-            spotifyProfile.profile.email ? ` (${spotifyProfile.profile.email})` : ""
-          }.`
-        : spotifyPlayer.error || "Connecting the Spotify player…"
-      : spotifyPlayer.ready
-        ? "Spotify player is connected and ready."
-        : spotifyPlayer.error || "Connecting the Spotify player…";
-
-  const missingLibraryScope = spotifyAuth.authenticated && !spotifyAuth.hasLibraryScope;
-  const libraryStatusText = missingLibraryScope
-    ? "Your Spotify login is missing library permission. Click Switch account, then approve the 'access your library / saved content' permission on Spotify's screen."
-    : library.status === "loading"
-      ? `${library.phase || "Reading your library"}… ${library.totalCount} songs so far.`
-      : library.status === "ready"
-        ? enoughTracks
-          ? `${matchedCount} of your ${library.totalCount} songs are mood-mapped and ready.`
-          : `Only ${matchedCount} of ${library.totalCount} songs could be mood-mapped — at least ${MIN_MATCHED_TRACKS} are needed. Try an account with more saved music.`
-        : library.status === "error"
-          ? library.error
-          : spotifyAuth.authenticated
-            ? "Ready to read your saved songs and playlists. Click 'Load my songs'."
-            : "Connects after the Spotify sign-in.";
+    : spotifyPlayer.ready
+      ? "Spotify player is connected and ready."
+      : spotifyPlayer.error || "Connecting the Spotify player…";
 
   const physiologyStatusText =
     physiology.status === "ready"
@@ -1755,11 +1679,11 @@ function SetupScreen({
         <BrandMark compact />
         <div>
           <h1 className="mx-auto max-w-2xl text-4xl font-semibold leading-[1.05] tracking-tight text-white sm:text-6xl">
-            Music from your library,{" "}
+            Music{" "}
             <span className={ACCENT_TEXT_GRADIENT}>tuned to your state of mind.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-slate-400">
-            Two short listening blocks built from your own Spotify songs. Your expression and
+            Two short listening blocks from a curated set of {songCount} tracks. Your expression and
             optional heart-rate signals stay local in this browser — only your ratings are saved.
           </p>
         </div>
@@ -1781,36 +1705,11 @@ function SetupScreen({
           </div>
         </SetupStep>
 
-        <SetupStep complete={libraryStepComplete} index={2} title="Your music, mood-mapped">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span className="flex items-center gap-2">
-              {library.status === "loading" && !missingLibraryScope ? (
-                <Loader2 className="size-4 shrink-0 animate-spin text-cyan-300" />
-              ) : null}
-              {libraryStatusText}
-            </span>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              {missingLibraryScope ? (
-                <GhostButton onClick={onDisconnectSpotify}>Switch account</GhostButton>
-              ) : spotifyAuth.authenticated &&
-                !missingLibraryScope &&
-                (library.status === "idle" || library.status === "error") ? (
-                <GhostButton onClick={library.load}>
-                  {library.status === "error" ? "Retry" : "Load my songs"}
-                </GhostButton>
-              ) : null}
-              {spotifyAuth.authenticated && library.status !== "loading" ? (
-                <GhostButton onClick={library.useDemo}>Use demo songs</GhostButton>
-              ) : null}
-            </div>
-          </div>
-          {spotifyAuth.authenticated &&
-          (library.status === "error" || library.status === "idle") ? (
-            <p className="mt-2 text-xs text-slate-500">
-              Tip: if Spotify is rate-limiting your library, “Use demo songs” runs the full
-              session with a curated set of real tracks.
-            </p>
-          ) : null}
+        <SetupStep complete index={2} title="Curated music ready">
+          <span>
+            {songCount} well-known tracks (balanced across calm, energetic, tense and melancholic)
+            are ready for the session.
+          </span>
         </SetupStep>
 
         <SetupStep complete={cameraReady} index={3} title="Camera signal (optional)">
@@ -1862,16 +1761,75 @@ function SetupScreen({
           <SkipForward className="size-4" />
         </PrimaryButton>
         <p className="text-xs text-slate-500">
-          {PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK} short tracks · one quick rating after each ·
-          about 7 minutes
+          {BLOCK_COUNT * TRACKS_PER_BLOCK} tracks · one minute each · two quick ratings after each
         </p>
       </div>
     </div>
   );
 }
 
-function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open, song }) {
+function LikertScale({ highLabel, lowLabel, onSelect, value }) {
+  return (
+    <div className="mt-6">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+        {RATING_SCORES.map((score) => {
+          const active = value === score;
+          return (
+            <button
+              className={`flex aspect-square items-center justify-center rounded-xl border text-lg font-semibold transition sm:text-xl ${
+                active
+                  ? "border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_12px_34px_rgba(34,211,238,0.3)]"
+                  : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-cyan-300/40 hover:bg-white/[0.08]"
+              }`}
+              key={score}
+              onClick={() => onSelect(score)}
+              type="button"
+            >
+              {score}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-slate-500">
+        <span>1 · {lowLabel}</span>
+        <span>{highLabel} · 7</span>
+      </div>
+    </div>
+  );
+}
+
+function RatingModal({ isLastTrial, onSubmit, open, song }) {
+  const [step, setStep] = useState("like");
+  const [likeScore, setLikeScore] = useState(null);
+  const [fitScore, setFitScore] = useState(null);
+
+  // Reset to step 1 whenever a new track's rating opens.
+  useEffect(() => {
+    if (open) {
+      setStep("like");
+      setLikeScore(null);
+      setFitScore(null);
+    }
+  }, [open, song?.id]);
+
   if (!open || !song) return null;
+
+  const onLike = step === "like";
+  const question = onLike ? LIKING_QUESTION : FIT_QUESTION;
+  const value = onLike ? likeScore : fitScore;
+
+  const handleSelect = (score) => {
+    if (onLike) setLikeScore(score);
+    else setFitScore(score);
+  };
+
+  const handleNext = () => {
+    if (onLike) {
+      setStep("fit");
+    } else if (likeScore && fitScore) {
+      onSubmit(likeScore, fitScore);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#05060f]/80 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-6">
@@ -1880,48 +1838,31 @@ function RatingModal({ currentRating, nextButtonLabel, onContinue, onRate, open,
         className={`${GLASS_CARD} max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#0a0d1d]/90 p-6 sm:p-8`}
         role="dialog"
       >
-        <SectionLabel icon={BarChart3}>Quick rating</SectionLabel>
+        <div className="flex items-center justify-between">
+          <SectionLabel icon={BarChart3}>Rating · step {onLike ? "1" : "2"} of 2</SectionLabel>
+          <div className="flex gap-1.5">
+            <span className={`h-1.5 w-8 rounded-full ${onLike ? ACCENT_GRADIENT : "bg-white/15"}`} />
+            <span className={`h-1.5 w-8 rounded-full ${onLike ? "bg-white/15" : ACCENT_GRADIENT}`} />
+          </div>
+        </div>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          How well did this track fit your mood?
+          {question.title}
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-400">
-          You just listened to <span className="font-semibold text-white">{song.title}</span>.
-          Select one rating to continue.
+          You just listened to <span className="font-semibold text-white">{song.title}</span> by{" "}
+          {song.artist}.
         </p>
 
-        <div className="mt-6 grid grid-cols-3 gap-2.5">
-          {RATING_OPTIONS.map((option) => {
-            const active = currentRating?.rating_1_to_3 === option.score;
+        <LikertScale
+          highLabel={question.highLabel}
+          lowLabel={question.lowLabel}
+          onSelect={handleSelect}
+          value={value}
+        />
 
-            return (
-              <button
-                className={`min-h-28 rounded-2xl border px-3 py-4 text-left transition sm:min-h-32 ${
-                  active
-                    ? "border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_16px_44px_rgba(34,211,238,0.3)]"
-                    : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-cyan-300/40 hover:bg-white/[0.08]"
-                }`}
-                key={option.score}
-                onClick={() => onRate(option.score)}
-                type="button"
-              >
-                <span className="block text-3xl font-semibold">{option.score}</span>
-                <span className="mt-3 block text-sm font-semibold leading-tight">{option.label}</span>
-                <span
-                  className={`mt-1.5 block text-xs leading-4 ${
-                    active ? "text-[#05060f]/70" : "text-slate-500"
-                  }`}
-                >
-                  {option.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-500">1 means no fit. 3 means a good mood fit.</p>
-          <PrimaryButton disabled={!currentRating} onClick={onContinue}>
-            {nextButtonLabel}
+        <div className="mt-7 flex items-center justify-end">
+          <PrimaryButton disabled={!value} onClick={handleNext}>
+            {onLike ? "Next" : isLastTrial ? "Finish session" : "Next track"}
             <SkipForward className="size-4" />
           </PrimaryButton>
         </div>
@@ -1963,6 +1904,82 @@ function CoverArt({ isPlaying, song }) {
   );
 }
 
+function mean(values) {
+  return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+}
+
+function ResultsChart({ ratings }) {
+  const byMode = (mode) => ratings.filter((rating) => rating.block_mode === mode);
+  const vibe = byMode("vibe");
+  const random = byMode("random");
+
+  const stats = {
+    vibe: {
+      fit: mean(vibe.map((r) => r.rating_fit_1_to_7)),
+      like: mean(vibe.map((r) => r.rating_like_1_to_7)),
+    },
+    random: {
+      fit: mean(random.map((r) => r.rating_fit_1_to_7)),
+      like: mean(random.map((r) => r.rating_like_1_to_7)),
+    },
+  };
+  const fitDelta = stats.vibe.fit - stats.random.fit;
+
+  // Grouped bars: Vibe vs Random, each with Mood-fit (primary) + Liking (control).
+  const groups = [
+    { label: "Vibe Shuffle", data: stats.vibe },
+    { label: "Random", data: stats.random },
+  ];
+  const barFor = (value) => `${(clamp(value, 0, 7) / 7) * 100}%`;
+
+  return (
+    <div>
+      <p className="text-sm leading-6 text-slate-300">
+        Mood-fit · Vibe{" "}
+        <span className="font-semibold text-white">{stats.vibe.fit.toFixed(1)}</span> vs Random{" "}
+        <span className="font-semibold text-white">{stats.random.fit.toFixed(1)}</span>{" "}
+        <span className={fitDelta >= 0 ? "text-cyan-300" : "text-rose-300"}>
+          ({fitDelta >= 0 ? "+" : ""}
+          {fitDelta.toFixed(1)})
+        </span>
+      </p>
+
+      <div className="mt-5 grid grid-cols-2 gap-5">
+        {groups.map((group) => (
+          <div key={group.label}>
+            <div className="flex h-44 items-end justify-center gap-4 rounded-2xl border border-white/10 bg-[#070a18] p-4">
+              {[
+                { key: "fit", label: "Mood-fit", value: group.data.fit, gradient: "from-cyan-400 to-violet-500" },
+                { key: "like", label: "Liking", value: group.data.like, gradient: "from-slate-500 to-slate-400" },
+              ].map((bar) => (
+                <div key={bar.key} className="flex h-full w-16 flex-col items-center justify-end">
+                  <span className="mb-1 text-sm font-semibold text-white">
+                    {bar.value ? bar.value.toFixed(1) : "—"}
+                  </span>
+                  <div className="flex w-full flex-1 items-end">
+                    <div
+                      className={`w-full rounded-t-lg bg-gradient-to-t ${bar.gradient} transition-all`}
+                      style={{ height: barFor(bar.value) }}
+                    />
+                  </div>
+                  <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
+                    {bar.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-center text-sm font-semibold text-slate-200">{group.label}</div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Mood-fit is the primary outcome; liking is the control (does Vibe just pick songs you like
+        more?). Scale 1–7.
+      </p>
+    </div>
+  );
+}
+
 export default function App() {
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
@@ -1970,18 +1987,16 @@ export default function App() {
   const spotifyPlayerError = spotifyPlayer.error;
   const pauseSpotify = spotifyPlayer.pause;
   const playSpotifyTrack = spotifyPlayer.playTrack;
-  const spotifyProfile = useSpotifyProfile(spotifyAuth.authenticated, spotifyAuth.ensureToken);
-  // The library load is gated only on a working login — the profile probe is
-  // advisory (display + a clear hint if the account is not allowlisted) and
-  // must never block the flow on its own.
-  const library = useSpotifyLibrary(spotifyAuth.authenticated, spotifyAuth.ensureToken);
-  const songs = library.matchedTracks;
+  // Fixed curated pool of 100 real Spotify tracks (no library API → no rate
+  // limit). Spotify login is only used for playback.
+  const songs = useMemo(() => buildDemoLibrary(), []);
   const face = useFaceExpression();
   const physiology = usePhysiologySensor();
   const [sessionStarted, setSessionStarted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPlaybackActive, setIsPlaybackActive] = useState(false);
   const [protocolId, setProtocolId] = useState(() => createProtocolId());
+  const [blockOrder, setBlockOrder] = useState(() => randomBlockOrder());
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentSong, setCurrentSong] = useState(null);
@@ -2000,7 +2015,7 @@ export default function App() {
   const physiologyWindowRef = useRef([]);
   const lastPhysiologySampleIdRef = useRef(0);
 
-  const mode = PROTOCOL_BLOCKS[currentBlockIndex].mode;
+  const mode = blockOrder[currentBlockIndex];
   const liveFusion = useMemo(
     () => fuseEmotionSignals(face, physiology.currentSummary),
     [
@@ -2022,15 +2037,13 @@ export default function App() {
     !ratingPromptOpen &&
     !currentRating &&
     (isPlaybackActive || trackProgress > 0);
-  const totalTrials = PROTOCOL_BLOCKS.length * TRACKS_PER_BLOCK;
+  const totalTrials = BLOCK_COUNT * TRACKS_PER_BLOCK;
   const completedTrials = ratings.length;
   const remainingSeconds =
     LISTENING_WINDOW_SECONDS * (1 - Math.min(trackProgress, 100) / 100);
   const cameraReady = face.status === "ready" || face.status === "searching";
-  const enoughTracks = songs.length >= MIN_MATCHED_TRACKS;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
-  const setupReady =
-    spotifyPlayerReady && library.status === "ready" && enoughTracks && physiologyReady;
+  const setupReady = spotifyPlayerReady && physiologyReady;
 
   function currentWindowSummary() {
     return summarizeExpressionSamples(expressionWindowRef.current, face);
@@ -2193,11 +2206,13 @@ export default function App() {
   }, [pauseSpotify, ratingPromptOpen]);
 
   function startSession() {
-    if (!setupReady || !enoughTracks) return;
+    if (!setupReady) return;
 
+    const order = randomBlockOrder();
     const sessionSeed = randomSeed();
-    const firstSong = rankSongs(songs, "random", mood, null, sessionSeed, [])[0] ?? songs[0];
+    const firstSong = rankSongs(songs, order[0], mood, null, sessionSeed, [])[0] ?? songs[0];
     resetSignalWindows();
+    setBlockOrder(order);
     setCurrentSong(firstSong);
     setHistory([]);
     setCurrentBlockIndex(0);
@@ -2230,8 +2245,8 @@ export default function App() {
     }
   }
 
-  function advanceProtocol() {
-    if (!currentRating || protocolComplete) return;
+  function advanceProtocol(latestRatings) {
+    if (protocolComplete) return;
 
     const selectionFusion = fuseEmotionSignals(currentWindowSummary(), currentPhysiologySummary());
     const selectionMood = signalStateToMood(selectionFusion);
@@ -2245,7 +2260,7 @@ export default function App() {
     );
     const nextSong = rankedSongs[0] ?? songs[0];
     const isLastTrackInBlock = currentTrackIndex === TRACKS_PER_BLOCK - 1;
-    const isLastBlock = currentBlockIndex === PROTOCOL_BLOCKS.length - 1;
+    const isLastBlock = currentBlockIndex === BLOCK_COUNT - 1;
 
     if (isLastTrackInBlock && isLastBlock) {
       setProtocolComplete(true);
@@ -2253,15 +2268,15 @@ export default function App() {
       setIsPlaying(false);
       setIsPlaybackActive(false);
       pauseSpotify();
-      window.setTimeout(() => downloadCsv(ratings, protocolId), 0);
+      window.setTimeout(() => downloadCsv(latestRatings ?? ratings, protocolId), 0);
       return;
     }
 
     if (isLastTrackInBlock) {
-      const nextBlock = PROTOCOL_BLOCKS[currentBlockIndex + 1];
+      const nextMode = blockOrder[currentBlockIndex + 1];
       const transitionQueue = rankSongs(
         songs,
-        nextBlock.mode,
+        nextMode,
         selectionMood,
         currentSong?.id ?? null,
         queueSeed + 31,
@@ -2279,95 +2294,52 @@ export default function App() {
     moveToSong(nextSong);
   }
 
-  function rateCurrentSong(score) {
+  // Two-step rating: liking + mood-fit are collected in the modal, then saved
+  // and the protocol advances in one step.
+  function submitRating(likeScore, fitScore) {
     if (protocolComplete || !ratingPromptOpen || !currentSong) return;
 
-    setRatings((items) => {
-      const expressionSummary = currentWindowSummary();
-      const expressionMood = expressionStateToMood(expressionSummary);
-      const physiologySummary = currentPhysiologySummary();
-      const fusionSummary = fuseEmotionSignals(expressionSummary, physiologySummary);
-      const nextRating = {
-        protocol_id: protocolId,
-        trial_id: trialId,
-        timestamp: new Date().toISOString(),
-        selected_genres: "",
-        selected_genre_labels: "",
-        block_number: currentBlockIndex + 1,
-        block_mode: mode,
-        mode,
-        track_number: currentTrackIndex + 1,
-        listening_window_seconds: LISTENING_WINDOW_SECONDS,
-        jumped_to_rating: jumpedTrialIds.includes(trialId),
-        song_id: currentSong.id,
-        song_source: "user_library",
-        jamendo_id: null,
-        spotify_id: currentSong.spotifyId,
-        spotify_uri: currentSong.spotifyUri,
-        song_title: currentSong.title,
-        artist: currentSong.artist,
-        album: currentSong.album,
-        song_track_genre: null,
-        song_track_genre_label: null,
-        song_popularity: currentSong.popularity,
-        song_quadrant: currentSong.quadrant,
-        song_valence: currentSong.valence,
-        song_arousal: currentSong.energy,
-        song_instrumentalness: currentSong.instrumentalness,
-        song_speechiness: null,
-        song_category_source: currentSong.categorySource ?? "kaggle_feature_lookup",
-        song_analysis_confidence: null,
-        song_external_url: currentSong.externalUrl,
-        song_license_url: null,
-        youtube_video_id: null,
-        youtube_url: null,
-        youtube_search_url: null,
-        detected_expression: expressionMood.tag,
-        detected_expression_label: expressionMood.label,
-        detected_valence: Number(expressionMood.valence.toFixed(3)),
-        detected_arousal: Number(expressionMood.energy.toFixed(3)),
-        expression_confidence: Number(expressionMood.confidence.toFixed(3)),
-        face_present: expressionMood.facePresent,
-        window_expression: expressionSummary.tag,
-        window_expression_confidence: Number(expressionSummary.confidence.toFixed(3)),
-        window_sample_count: expressionSummary.sampleCount,
-        mean_happy: Number(expressionSummary.mean_happy.toFixed(3)),
-        mean_relaxed: Number(expressionSummary.mean_relaxed.toFixed(3)),
-        mean_tense: Number(expressionSummary.mean_tense.toFixed(3)),
-        mean_sad_low: Number(expressionSummary.mean_sad_low.toFixed(3)),
-        ecg_connected: physiology.connected,
-        physiology_quality: physiologySummary.physiology_quality,
-        hr_bpm_mean: physiologySummary.hr_bpm_mean,
-        rr_count: physiologySummary.rr_count,
-        rr_artifact_rate: physiologySummary.artifact_rate,
-        rmssd_ms: physiologySummary.rmssd_ms,
-        sdnn_ms: physiologySummary.sdnn_ms,
-        pnn20: physiologySummary.pnn20,
-        baseline_hr_bpm: physiologySummary.baseline_hr_bpm,
-        baseline_rmssd_ms: physiologySummary.baseline_rmssd_ms,
-        z_hr: physiologySummary.z_hr,
-        z_rmssd: physiologySummary.z_rmssd,
-        z_sdnn: physiologySummary.z_sdnn,
-        physiology_arousal: physiologySummary.physiology_arousal,
-        fusion_valence: Number(fusionSummary.valence.toFixed(3)),
-        fusion_arousal: Number(fusionSummary.energy.toFixed(3)),
-        selection_signal_source: fusionSummary.selectionSignalSource,
-        rating_1_to_3: score,
-        score,
-      };
+    const expressionSummary = currentWindowSummary();
+    const expressionMood = expressionStateToMood(expressionSummary);
+    const physiologySummary = currentPhysiologySummary();
+    const fusionSummary = fuseEmotionSignals(expressionSummary, physiologySummary);
+    const nextRating = {
+      protocol_id: protocolId,
+      trial_id: trialId,
+      timestamp: new Date().toISOString(),
+      block_order: blockOrder.join(">"),
+      block_number: currentBlockIndex + 1,
+      block_mode: mode,
+      track_number: currentTrackIndex + 1,
+      song_id: currentSong.id,
+      spotify_id: currentSong.spotifyId,
+      song_title: currentSong.title,
+      artist: currentSong.artist,
+      song_quadrant: currentSong.quadrant,
+      song_valence: currentSong.valence,
+      song_arousal: currentSong.energy,
+      face_present: expressionMood.facePresent,
+      ecg_connected: physiology.connected,
+      physiology_quality: physiologySummary.physiology_quality,
+      detected_valence: Number(fusionSummary.valence.toFixed(3)),
+      detected_arousal: Number(fusionSummary.energy.toFixed(3)),
+      physiology_arousal: physiologySummary.physiology_arousal,
+      rating_like_1_to_7: likeScore,
+      rating_fit_1_to_7: fitScore,
+    };
 
-      if (items.some((rating) => rating.trial_id === trialId)) {
-        return items.map((rating) => (rating.trial_id === trialId ? nextRating : rating));
-      }
-
-      return [...items, nextRating];
-    });
+    const nextRatings = ratings.some((rating) => rating.trial_id === trialId)
+      ? ratings.map((rating) => (rating.trial_id === trialId ? nextRating : rating))
+      : [...ratings, nextRating];
+    setRatings(nextRatings);
+    advanceProtocol(nextRatings);
   }
 
   function resetProtocol() {
     playbackRequestRef.current += 1;
     resetSignalWindows();
     setProtocolId(createProtocolId());
+    setBlockOrder(randomBlockOrder());
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
     setCurrentSong(null);
@@ -2406,14 +2378,8 @@ export default function App() {
     await startPlayback(currentSong);
   }
 
-  const nextButtonLabel = protocolComplete
-    ? "Protocol complete"
-    : !currentRating
-      ? "Rate to continue"
-      : currentBlockIndex === PROTOCOL_BLOCKS.length - 1 &&
-          currentTrackIndex === TRACKS_PER_BLOCK - 1
-        ? "Finish session"
-        : "Next track";
+  const isLastTrial =
+    currentBlockIndex === BLOCK_COUNT - 1 && currentTrackIndex === TRACKS_PER_BLOCK - 1;
 
   if (!sessionStarted) {
     return (
@@ -2422,7 +2388,6 @@ export default function App() {
         <SetupScreen
           cameraReady={cameraReady}
           face={face}
-          library={library}
           onConnectHeartSensor={physiology.connectBle}
           onConnectSpotify={spotifyAuth.connect}
           onDisconnectHeartSensor={physiology.disconnect}
@@ -2432,9 +2397,9 @@ export default function App() {
           onStartMockHeartSensor={physiology.startMock}
           physiology={physiology}
           setupReady={setupReady}
+          songCount={songs.length}
           spotifyAuth={spotifyAuth}
           spotifyPlayer={spotifyPlayer}
-          spotifyProfile={spotifyProfile}
         />
       </main>
     );
@@ -2595,23 +2560,20 @@ export default function App() {
 
         {protocolComplete ? (
           <section className={`${GLASS_CARD} p-6 sm:p-8`}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
                   <ShieldCheck className="size-4" />
                   Session complete
                 </div>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-                  Thank you for rating all tracks.
+                  Your result
                 </h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  The recorded session data is ready to save.
-                </p>
               </div>
               <div className="flex gap-2">
                 <PrimaryButton onClick={() => downloadCsv(ratings, protocolId)}>
                   <Download className="size-4" />
-                  Save session data
+                  Save CSV
                 </PrimaryButton>
                 <GhostButton onClick={resetProtocol}>
                   <RotateCcw className="size-4" />
@@ -2619,15 +2581,16 @@ export default function App() {
                 </GhostButton>
               </div>
             </div>
+            <div className="mt-6">
+              <ResultsChart ratings={ratings} />
+            </div>
           </section>
         ) : null}
       </div>
 
       <RatingModal
-        currentRating={currentRating}
-        nextButtonLabel={nextButtonLabel}
-        onContinue={advanceProtocol}
-        onRate={rateCurrentSong}
+        isLastTrial={isLastTrial}
+        onSubmit={submitRating}
         open={ratingPromptOpen}
         song={currentSong}
       />

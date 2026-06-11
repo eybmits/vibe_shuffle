@@ -180,7 +180,7 @@ test("missing RR intervals do not drive HRV-based selection", () => {
   assert.equal(fused.tag, "happy");
 });
 
-test("missing face centers both axes even when physiology is available", () => {
+test("missing face centers valence but ECG still drives arousal", () => {
   const fused = fuseEmotionSignals(
     { confidence: 0.8, energy: 0.5, facePresent: false, tag: "happy", valence: 0.88 },
     { physiology_arousal: 0.9, physiology_quality: "good", rr_count: 40 },
@@ -188,6 +188,57 @@ test("missing face centers both axes even when physiology is available", () => {
 
   assert.equal(fused.facePresent, false);
   assert.equal(fused.valence, 0.5);
+  assert.equal(fused.energy, 0.9);
+  assert.equal(fused.selectionSignalSource, "ecg_arousal_only");
+});
+
+test("usable ECG drives arousal even with no face present", () => {
+  const baseline = {
+    hr_mad: 10,
+    median_hr_bpm: 70,
+    median_rmssd_ms: 30,
+    median_sdnn_ms: 20,
+    rmssd_mad: 10,
+    sdnn_mad: 10,
+  };
+  // Elevated HR + reduced RMSSD → arousal clearly above 0.5.
+  const rr = Array.from({ length: 40 }, (_, index) => (index % 2 ? 710 : 690));
+  const summary = summarizePhysiologyMeasurements(measurementsFromRr(rr, 80), baseline);
+  assert.equal(summary.physiology_quality, "good");
+  assert.ok(summary.physiology_arousal > 0.5);
+
+  const fused = fuseEmotionSignals({ facePresent: false }, summary);
+  // Energy follows the ECG arousal, not the neutral 0.5 fallback.
+  approx(fused.energy, summary.physiology_arousal);
+  assert.equal(fused.selectionSignalSource, "ecg_arousal_only");
+  assert.equal(fused.valence, 0.5);
+});
+
+test("ECG arousal moves below 0.5 when HR drops and HRV rises", () => {
+  const baseline = {
+    hr_mad: 10,
+    median_hr_bpm: 70,
+    median_rmssd_ms: 30,
+    median_sdnn_ms: 20,
+    rmssd_mad: 10,
+    sdnn_mad: 10,
+  };
+  // Low HR + high RMSSD → arousal below 0.5.
+  const rr = Array.from({ length: 40 }, (_, index) => (index % 2 ? 980 : 900));
+  const summary = summarizePhysiologyMeasurements(measurementsFromRr(rr, 60), baseline);
+  assert.equal(summary.physiology_quality, "good");
+  assert.ok(summary.physiology_arousal < 0.5, `arousal was ${summary.physiology_arousal}`);
+
+  const fused = fuseEmotionSignals({ facePresent: false }, summary);
+  assert.ok(fused.energy < 0.5);
+});
+
+test("no face and no usable ECG falls back to neutral centre", () => {
+  const fused = fuseEmotionSignals(
+    { facePresent: false },
+    summarizePhysiologyMeasurements([]),
+  );
   assert.equal(fused.energy, 0.5);
-  assert.equal(fused.selectionSignalSource, "no_face_center");
+  assert.equal(fused.valence, 0.5);
+  assert.equal(fused.selectionSignalSource, "no_signal_center");
 });
