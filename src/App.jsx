@@ -35,7 +35,6 @@ import { EMOTION_QUADRANTS, buildDemoLibrary } from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 60;
-const CALIBRATION_SECONDS = 20;
 const MEDIAPIPE_VERSION = "0.10.35";
 
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
@@ -1008,18 +1007,9 @@ function useFaceExpression() {
     landmarkerRef.current = null;
   }, []);
 
-  // Preview-only attach for secondary video elements (e.g. the calibration
-  // overlay): shows the live stream without taking over the detection ref.
-  const attachPreview = useCallback((node) => {
-    if (node && streamRef.current) {
-      node.srcObject = streamRef.current;
-      node.play().catch(() => {});
-    }
-  }, []);
-
   // Lock the current (neutral) smoothed scores as the personal baseline. Called
-  // at the end of the calibration phase so trial 1 already reads deviations from
-  // this participant's resting face.
+  // when the session starts, after the camera has run during setup, so trial 1
+  // already reads deviations from this participant's resting face.
   const snapshotBaseline = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker?.smoothedScores) return;
@@ -1034,7 +1024,6 @@ function useFaceExpression() {
 
   return {
     ...state,
-    attachPreview,
     setVideoRef,
     snapshotBaseline,
     start,
@@ -1625,7 +1614,7 @@ function SetupScreen({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>
               {cameraReady
-                ? "Expression detection is running."
+                ? "Running — keep a relaxed face; your neutral baseline calibrates in the background."
                 : face.error || "Local expression detection helps the adaptive block."}
             </span>
             {!cameraReady ? (
@@ -1889,75 +1878,6 @@ function ResultsChart({ ratings }) {
   );
 }
 
-function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
-  const progress = (total - secondsRemaining) / total;
-  const radius = 70;
-  const circumference = 2 * Math.PI * radius;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060f]/90 px-4 py-6 backdrop-blur-xl">
-      <section className={`${GLASS_CARD} w-full max-w-lg bg-[#0a0d1d]/90 p-7 text-center sm:p-9`}>
-        <SectionLabel icon={Camera}>Calibration</SectionLabel>
-        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-          Look neutrally at the camera
-        </h2>
-        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-400">
-          Relax your face and sit still for a moment. We are learning your personal resting baseline
-          so small changes are detected accurately during the session.
-        </p>
-
-        <div className="relative mx-auto mt-7 size-44">
-          <div className="absolute inset-2 overflow-hidden rounded-full border border-white/12 bg-black/60">
-            <video
-              aria-label="Calibration camera preview"
-              className="h-full w-full scale-x-[-1] object-cover opacity-90"
-              muted
-              playsInline
-              ref={face.attachPreview}
-            />
-          </div>
-          <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 176 176">
-            <circle cx="88" cy="88" r={radius} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="6" />
-            <circle
-              cx="88"
-              cy="88"
-              r={radius}
-              fill="none"
-              stroke="url(#calibGradient)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - progress)}
-              style={{ transition: "stroke-dashoffset 1s linear" }}
-            />
-            <defs>
-              <linearGradient id="calibGradient" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0%" stopColor="#22d3ee" />
-                <stop offset="100%" stopColor="#a78bfa" />
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
-
-        <div className="mt-5 text-2xl font-semibold tabular-nums text-white">
-          {secondsRemaining}s
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          {face.status === "searching" ? "Looking for your face…" : "Hold still"}
-        </p>
-
-        <button
-          className="mt-6 text-xs font-semibold text-slate-500 underline-offset-4 hover:text-slate-300 hover:underline"
-          onClick={onSkip}
-          type="button"
-        >
-          Skip calibration
-        </button>
-      </section>
-    </div>
-  );
-}
-
 export default function App() {
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
@@ -1987,7 +1907,6 @@ export default function App() {
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
   const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
-  const [calibrationRemaining, setCalibrationRemaining] = useState(0);
   const playbackRequestRef = useRef(0);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
@@ -2202,34 +2121,11 @@ export default function App() {
     setIsPlaybackActive(false);
     setTrackProgress(0);
     setPlaybackNotice("Press play when you are ready.");
-    // Run a short neutral-baseline calibration when the camera is active.
-    if (cameraReady) {
-      setCalibrationRemaining(CALIBRATION_SECONDS);
-    }
+    // The neutral baseline is calibrated in the background while the camera runs
+    // during setup — lock it in now, no blocking step.
+    if (cameraReady) face.snapshotBaseline();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-
-  function finishCalibration() {
-    if (cameraReady) face.snapshotBaseline();
-    resetSignalWindows();
-    setCalibrationRemaining(0);
-  }
-
-  // Calibration countdown: tick down each second, then lock the baseline.
-  useEffect(() => {
-    if (calibrationRemaining <= 0) return undefined;
-    const id = window.setTimeout(() => {
-      setCalibrationRemaining((value) => {
-        if (value <= 1) {
-          if (cameraReady) face.snapshotBaseline();
-          resetSignalWindows();
-          return 0;
-        }
-        return value - 1;
-      });
-    }, 1000);
-    return () => window.clearTimeout(id);
-  }, [calibrationRemaining, cameraReady, face]);
 
   function moveToSong(song) {
     resetSignalWindows();
@@ -2360,7 +2256,6 @@ export default function App() {
     setIsPlaybackActive(false);
     setPlaybackNotice("");
     setJumpedTrialIds([]);
-    setCalibrationRemaining(0);
     pauseSpotify();
   }
 
@@ -2370,8 +2265,7 @@ export default function App() {
   }
 
   async function togglePlayback() {
-    if (!sessionStarted || protocolComplete || ratingPromptOpen || calibrationRemaining > 0 || !currentSong)
-      return;
+    if (!sessionStarted || protocolComplete || ratingPromptOpen || !currentSong) return;
 
     if (isPlaying) {
       playbackRequestRef.current += 1;
@@ -2601,15 +2495,6 @@ export default function App() {
         open={ratingPromptOpen}
         song={currentSong}
       />
-
-      {calibrationRemaining > 0 ? (
-        <CalibrationOverlay
-          face={face}
-          onSkip={finishCalibration}
-          secondsRemaining={calibrationRemaining}
-          total={CALIBRATION_SECONDS}
-        />
-      ) : null}
     </main>
   );
 }
