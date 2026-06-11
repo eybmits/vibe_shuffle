@@ -242,3 +242,18 @@ test("no face and no usable ECG falls back to neutral centre", () => {
   assert.equal(fused.valence, 0.5);
   assert.equal(fused.selectionSignalSource, "no_signal_center");
 });
+
+test("head motion adds to arousal on top of a usable ECG", () => {
+  const physiology = { physiology_arousal: 0.55, physiology_quality: "good", rr_count: 40 };
+  const still = fuseEmotionSignals(
+    { facePresent: true, energy: 0.5, valence: 0.7, tag: "happy" },
+    physiology,
+  );
+  const moving = fuseEmotionSignals(
+    { facePresent: true, energy: 0.9, valence: 0.7, tag: "happy" },
+    physiology,
+  );
+
+  approx(still.energy, 0.55);
+  assert.ok(moving.energy > still.energy, `moving ${moving.energy} should exceed still ${still.energy}`);
+});

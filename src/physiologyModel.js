@@ -9,6 +9,8 @@ export const ECTOPIC_DELTA_RATIO = 0.3;
 // Arousal is driven by HR (up) and RMSSD (down) only. SDNN needs ~5 min to be
 // valid, so it is still logged but excluded from the short-window estimate.
 export const PHYSIOLOGY_AROUSAL_WEIGHT = 0.22;
+// How strongly head motion adds to arousal on top of a usable ECG.
+export const ECG_MOTION_BOOST = 0.6;
 
 const clamp = (value, min = 0, max = 1) => Math.min(Math.max(value, min), max);
 
@@ -273,10 +275,13 @@ export function fuseEmotionSignals(faceSummary, physiologySummary) {
 
   // Face provides valence; without a face, valence stays neutral.
   const valence = facePresent ? clamp(Number(faceSummary?.valence ?? 0.5)) : 0.5;
-  // Arousal: usable ECG (both directions) takes precedence; otherwise the face
-  // channel (head motion) carries it.
+  // Arousal: a usable ECG sets the base (both directions). Head motion (the
+  // part of face energy above the neutral 0.5) adds on top — moving along with
+  // the music raises arousal even when the ECG is connected. Without a usable
+  // ECG, the face/motion channel carries arousal alone.
+  const motionBoost = facePresent ? Math.max(0, Number(faceSummary?.energy ?? 0.5) - 0.5) : 0;
   const energy = physiologyUsable
-    ? clamp(physiologyArousal)
+    ? clamp(physiologyArousal + motionBoost * ECG_MOTION_BOOST)
     : clamp(Number(faceSummary?.energy ?? 0.5));
   const tag = physiologyUsable ? quadrantFromAxes(valence, energy) : faceTag;
 
