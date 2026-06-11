@@ -35,6 +35,7 @@ import { EMOTION_QUADRANTS, buildDemoLibrary } from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 60;
+const CALIBRATION_SECONDS = 14;
 const MEDIAPIPE_VERSION = "0.10.35";
 
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
@@ -1007,9 +1008,17 @@ function useFaceExpression() {
     landmarkerRef.current = null;
   }, []);
 
-  // Lock the current (neutral) smoothed scores as the personal baseline. Called
-  // when the session starts, after the camera has run during setup, so trial 1
-  // already reads deviations from this participant's resting face.
+  // Preview-only attach for secondary video elements (e.g. the calibration
+  // card): shows the live stream without taking over the detection ref.
+  const attachPreview = useCallback((node) => {
+    if (node && streamRef.current) {
+      node.srcObject = streamRef.current;
+      node.play().catch(() => {});
+    }
+  }, []);
+
+  // Lock the current (neutral) smoothed scores as the personal baseline so the
+  // first trial already reads deviations from this participant's resting face.
   const snapshotBaseline = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker?.smoothedScores) return;
@@ -1024,6 +1033,7 @@ function useFaceExpression() {
 
   return {
     ...state,
+    attachPreview,
     setVideoRef,
     snapshotBaseline,
     start,
@@ -1674,9 +1684,9 @@ function LikertScale({ highLabel, lowLabel, onSelect, value }) {
           const active = value === score;
           return (
             <button
-              className={`flex aspect-square items-center justify-center rounded-xl border text-lg font-semibold transition sm:text-xl ${
+              className={`flex aspect-square items-center justify-center rounded-xl border text-lg font-semibold transition duration-200 hover:-translate-y-0.5 active:scale-95 sm:text-xl ${
                 active
-                  ? "border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_12px_34px_rgba(34,211,238,0.3)]"
+                  ? "scale-105 border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_12px_34px_rgba(34,211,238,0.35)]"
                   : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-cyan-300/40 hover:bg-white/[0.08]"
               }`}
               key={score}
@@ -1733,7 +1743,7 @@ function RatingModal({ isLastTrial, onSubmit, open, song }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#05060f]/80 px-3 py-4 backdrop-blur-md sm:px-4 sm:py-6">
       <section
         aria-modal="true"
-        className={`${GLASS_CARD} max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto bg-[#0a0d1d]/90 p-6 sm:p-8`}
+        className={`${GLASS_CARD} max-h-[calc(100dvh-2rem)] w-full max-w-2xl animate-scale-in overflow-y-auto bg-[#0a0d1d]/90 p-6 sm:p-8`}
         role="dialog"
       >
         <div className="flex items-center justify-between">
@@ -1878,6 +1888,81 @@ function ResultsChart({ ratings }) {
   );
 }
 
+function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
+  const progress = (total - secondsRemaining) / total;
+  const radius = 78;
+  const circumference = 2 * Math.PI * radius;
+  const searching = face.status === "searching" || face.status === "loading";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060f]/85 px-4 py-6 backdrop-blur-2xl">
+      <section
+        className={`${GLASS_CARD} w-full max-w-lg animate-scale-in bg-[#0a0d1d]/80 p-8 text-center sm:p-10`}
+      >
+        <SectionLabel icon={Camera}>Calibration</SectionLabel>
+        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.05]">
+          Look neutrally at the camera
+        </h2>
+        <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-400">
+          Relax your face and sit still for a moment — we are learning your personal resting baseline
+          so small changes are detected accurately during the session.
+        </p>
+
+        <div className="relative mx-auto mt-9 size-52">
+          {/* breathing ambient glow */}
+          <div className="absolute inset-0 animate-breathe rounded-full bg-gradient-to-br from-cyan-400/30 to-violet-500/30 blur-2xl" />
+          <div className="absolute inset-3 overflow-hidden rounded-full border border-white/15 bg-black/60 shadow-[0_0_60px_rgba(34,211,238,0.18)]">
+            <video
+              aria-label="Calibration camera preview"
+              className="h-full w-full scale-x-[-1] object-cover"
+              muted
+              playsInline
+              ref={face.attachPreview}
+            />
+            {searching ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                Looking for you…
+              </div>
+            ) : null}
+          </div>
+          <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 208 208">
+            <circle cx="104" cy="104" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
+            <circle
+              cx="104"
+              cy="104"
+              r={radius}
+              fill="none"
+              stroke="url(#calibGradient)"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - progress)}
+              style={{ transition: "stroke-dashoffset 1s linear" }}
+            />
+            <defs>
+              <linearGradient id="calibGradient" x1="0" x2="1" y1="0" y2="1">
+                <stop offset="0%" stopColor="#22d3ee" />
+                <stop offset="100%" stopColor="#a78bfa" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+
+        <div className="mt-6 text-3xl font-semibold tabular-nums text-white">{secondsRemaining}s</div>
+        <p className="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">Hold still</p>
+
+        <button
+          className="mt-7 text-xs font-semibold text-slate-500 underline-offset-4 transition hover:text-slate-300 hover:underline"
+          onClick={onSkip}
+          type="button"
+        >
+          Skip calibration
+        </button>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
@@ -1907,6 +1992,7 @@ export default function App() {
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
   const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
+  const [calibrationRemaining, setCalibrationRemaining] = useState(0);
   const playbackRequestRef = useRef(0);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
@@ -2121,11 +2207,31 @@ export default function App() {
     setIsPlaybackActive(false);
     setTrackProgress(0);
     setPlaybackNotice("Press play when you are ready.");
-    // The neutral baseline is calibrated in the background while the camera runs
-    // during setup — lock it in now, no blocking step.
-    if (cameraReady) face.snapshotBaseline();
+    // Short neutral-baseline calibration when the camera is active.
+    if (cameraReady) setCalibrationRemaining(CALIBRATION_SECONDS);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  function finishCalibration() {
+    if (cameraReady) face.snapshotBaseline();
+    resetSignalWindows();
+    setCalibrationRemaining(0);
+  }
+
+  useEffect(() => {
+    if (calibrationRemaining <= 0) return undefined;
+    const id = window.setTimeout(() => {
+      setCalibrationRemaining((value) => {
+        if (value <= 1) {
+          if (cameraReady) face.snapshotBaseline();
+          resetSignalWindows();
+          return 0;
+        }
+        return value - 1;
+      });
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [calibrationRemaining, cameraReady, face]);
 
   function moveToSong(song) {
     resetSignalWindows();
@@ -2256,6 +2362,7 @@ export default function App() {
     setIsPlaybackActive(false);
     setPlaybackNotice("");
     setJumpedTrialIds([]);
+    setCalibrationRemaining(0);
     pauseSpotify();
   }
 
@@ -2265,7 +2372,8 @@ export default function App() {
   }
 
   async function togglePlayback() {
-    if (!sessionStarted || protocolComplete || ratingPromptOpen || !currentSong) return;
+    if (!sessionStarted || protocolComplete || ratingPromptOpen || calibrationRemaining > 0 || !currentSong)
+      return;
 
     if (isPlaying) {
       playbackRequestRef.current += 1;
@@ -2339,12 +2447,26 @@ export default function App() {
           </div>
         </header>
 
-        <section className={`${GLASS_CARD} overflow-hidden`}>
-          <div className="grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[300px_minmax(0,1fr)]">
-            {currentSong ? <CoverArt isPlaying={isPlaying} song={currentSong} /> : null}
+        <section className={`${GLASS_CARD} relative overflow-hidden`}>
+          {/* ambient album-colour glow that drifts behind the player */}
+          {currentSong ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-24 animate-ambient-drift opacity-60 blur-[90px]"
+              style={{
+                background: `radial-gradient(45% 55% at 28% 40%, ${currentSong.accent}55, transparent 70%)`,
+              }}
+            />
+          ) : null}
+          <div className="relative grid items-center gap-8 p-6 sm:p-10 lg:grid-cols-[300px_minmax(0,1fr)]">
+            {currentSong ? (
+              <div key={currentSong.id} className="animate-fade-in">
+                <CoverArt isPlaying={isPlaying} song={currentSong} />
+              </div>
+            ) : null}
 
             <div className="flex min-w-0 flex-col gap-7">
-              <div>
+              <div key={currentSong?.id} className="animate-fade-in">
                 <SectionLabel icon={Music2}>Now playing</SectionLabel>
                 <h1 className="mt-3 break-words text-3xl font-semibold leading-[1.05] tracking-tight text-white sm:text-5xl">
                   {currentSong?.title}
@@ -2356,9 +2478,16 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-5">
+                <div className="relative shrink-0">
+                  {isPlaying ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute -inset-2 animate-breathe rounded-full bg-gradient-to-br from-cyan-400/40 to-violet-500/40 blur-md"
+                    />
+                  ) : null}
                 <button
                   aria-label={isPlaying ? "Pause music" : "Start music"}
-                  className={`flex size-20 shrink-0 items-center justify-center rounded-full ${ACCENT_GRADIENT} text-[#05060f] shadow-[0_0_60px_rgba(34,211,238,0.35)] transition hover:scale-105 disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-white/30 disabled:shadow-none disabled:hover:scale-100`}
+                  className={`relative flex size-20 items-center justify-center rounded-full ${ACCENT_GRADIENT} text-[#05060f] shadow-[0_0_60px_rgba(34,211,238,0.35)] transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-white/30 disabled:shadow-none disabled:hover:scale-100`}
                   disabled={protocolComplete || ratingPromptOpen}
                   onClick={togglePlayback}
                   type="button"
@@ -2369,6 +2498,7 @@ export default function App() {
                     <Play className="ml-1 size-8" />
                   )}
                 </button>
+                </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -2495,6 +2625,15 @@ export default function App() {
         open={ratingPromptOpen}
         song={currentSong}
       />
+
+      {calibrationRemaining > 0 ? (
+        <CalibrationOverlay
+          face={face}
+          onSkip={finishCalibration}
+          secondsRemaining={calibrationRemaining}
+          total={CALIBRATION_SECONDS}
+        />
+      ) : null}
     </main>
   );
 }
