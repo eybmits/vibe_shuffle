@@ -45,17 +45,17 @@ const SPOTIFY_REDIRECT_URI =
 // stored tokens can never lack newly required permissions (e.g. library read).
 const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v3";
 
-const RATING_SCORES = [1, 2, 3, 4, 5, 6, 7];
+const RATING_SCORES = [1, 2, 3, 4, 5];
 
 // Two separate 7-point Likert questions per track, asked in sequence.
 const LIKING_QUESTION = {
-  key: "rating_like_1_to_7",
+  key: "rating_like_1_to_5",
   title: "How much do you like this song?",
   lowLabel: "Don't like it",
   highLabel: "Love it",
 };
 const FIT_QUESTION = {
-  key: "rating_fit_1_to_7",
+  key: "rating_fit_1_to_5",
   title: "How well did it fit your current mood?",
   lowLabel: "Not at all",
   highLabel: "Perfect fit",
@@ -119,8 +119,8 @@ const CSV_COLUMNS = [
   "detected_valence",
   "detected_arousal",
   "physiology_arousal",
-  "rating_like_1_to_7",
-  "rating_fit_1_to_7",
+  "rating_like_1_to_5",
+  "rating_fit_1_to_5",
 ];
 
 function ratingsToCsv(ratings) {
@@ -1771,7 +1771,7 @@ function SetupScreen({
 function LikertScale({ highLabel, lowLabel, onSelect, value }) {
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
         {RATING_SCORES.map((score) => {
           const active = value === score;
           return (
@@ -1792,7 +1792,7 @@ function LikertScale({ highLabel, lowLabel, onSelect, value }) {
       </div>
       <div className="mt-2 flex justify-between text-xs text-slate-500">
         <span>1 · {lowLabel}</span>
-        <span>{highLabel} · 7</span>
+        <span>{highLabel} · 5</span>
       </div>
     </div>
   );
@@ -1915,12 +1915,12 @@ function ResultsChart({ ratings }) {
 
   const stats = {
     vibe: {
-      fit: mean(vibe.map((r) => r.rating_fit_1_to_7)),
-      like: mean(vibe.map((r) => r.rating_like_1_to_7)),
+      fit: mean(vibe.map((r) => r.rating_fit_1_to_5)),
+      like: mean(vibe.map((r) => r.rating_like_1_to_5)),
     },
     random: {
-      fit: mean(random.map((r) => r.rating_fit_1_to_7)),
-      like: mean(random.map((r) => r.rating_like_1_to_7)),
+      fit: mean(random.map((r) => r.rating_fit_1_to_5)),
+      like: mean(random.map((r) => r.rating_like_1_to_5)),
     },
   };
   const fitDelta = stats.vibe.fit - stats.random.fit;
@@ -1930,7 +1930,7 @@ function ResultsChart({ ratings }) {
     { label: "Vibe Shuffle", data: stats.vibe },
     { label: "Random", data: stats.random },
   ];
-  const barFor = (value) => `${(clamp(value, 0, 7) / 7) * 100}%`;
+  const barFor = (value) => `${(clamp(value, 0, 5) / 5) * 100}%`;
 
   return (
     <div>
@@ -1974,7 +1974,7 @@ function ResultsChart({ ratings }) {
       </div>
       <p className="mt-3 text-xs text-slate-500">
         Mood-fit is the primary outcome; liking is the control (does Vibe just pick songs you like
-        more?). Scale 1–7.
+        more?). Scale 1–5.
       </p>
     </div>
   );
@@ -2324,8 +2324,8 @@ export default function App() {
       detected_valence: Number(fusionSummary.valence.toFixed(3)),
       detected_arousal: Number(fusionSummary.energy.toFixed(3)),
       physiology_arousal: physiologySummary.physiology_arousal,
-      rating_like_1_to_7: likeScore,
-      rating_fit_1_to_7: fitScore,
+      rating_like_1_to_5: likeScore,
+      rating_fit_1_to_5: fitScore,
     };
 
     const nextRatings = ratings.some((rating) => rating.trial_id === trialId)
