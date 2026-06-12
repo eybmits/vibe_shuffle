@@ -2218,12 +2218,16 @@ export default function App() {
     setCalibrationRemaining(0);
   }
 
+  // `face` is a fresh object every frame, so it must NOT be a dependency here —
+  // otherwise the 1 s timer is cleared and restarted before it can ever fire.
+  const faceRef = useRef(face);
+  faceRef.current = face;
   useEffect(() => {
     if (calibrationRemaining <= 0) return undefined;
     const id = window.setTimeout(() => {
       setCalibrationRemaining((value) => {
         if (value <= 1) {
-          if (cameraReady) face.snapshotBaseline();
+          if (cameraReady) faceRef.current.snapshotBaseline();
           resetSignalWindows();
           return 0;
         }
@@ -2231,7 +2235,7 @@ export default function App() {
       });
     }, 1000);
     return () => window.clearTimeout(id);
-  }, [calibrationRemaining, cameraReady, face]);
+  }, [calibrationRemaining, cameraReady]);
 
   function moveToSong(song) {
     resetSignalWindows();
