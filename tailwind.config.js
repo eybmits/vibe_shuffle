@@ -53,6 +53,18 @@ export default {
           "60%": { opacity: "1", filter: "blur(0)" },
           "100%": { opacity: "1", transform: "translateY(0)", filter: "blur(0)" },
         },
+        "rise-up": {
+          "0%": { opacity: "0", transform: "translateY(30px)", filter: "blur(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)", filter: "blur(0)" },
+        },
+        radiate: {
+          "0%, 100%": { opacity: "0.5", transform: "translate(-50%, -50%) scale(1)" },
+          "50%": { opacity: "0.95", transform: "translate(-50%, -50%) scale(1.16)" },
+        },
+        eq: {
+          "0%, 100%": { transform: "scaleY(0.4)" },
+          "50%": { transform: "scaleY(1)" },
+        },
       },
       animation: {
         "soft-pulse": "soft-pulse 3s ease-in-out infinite",
@@ -63,7 +75,10 @@ export default {
         "scale-in": "scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both",
         "ambient-drift": "ambient-drift 14s ease-in-out infinite",
         "highlight-wipe": "highlight-wipe 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
-        "word-in": "word-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "word-in": "word-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "rise-up": "rise-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
+        radiate: "radiate 7s ease-in-out infinite",
+        eq: "eq 1.2s ease-in-out infinite",
       },
     },
   },

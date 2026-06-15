@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   SkipForward,
   Sparkles,
-  Waves,
 } from "lucide-react";
 import {
   FACE_SAMPLE_INTERVAL_MS,
@@ -1365,22 +1364,67 @@ function AuroraBackground() {
   );
 }
 
+// Five vertical bars whose relative heights give the mark its waveform shape;
+// each bar breathes on its own timing so the logo feels alive.
+const GLYPH_BARS = [0.52, 0.82, 0.36, 1, 0.62];
+
+function WaveGlyph({ size = 40 }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative inline-flex shrink-0 items-center justify-center"
+      style={{ height: size, width: size }}
+    >
+      <span className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-400/35 to-violet-500/35 blur-md" />
+      <svg className="relative" fill="none" style={{ height: size, width: size }} viewBox="0 0 40 40">
+        <defs>
+          <linearGradient id="vibeGlyphGrad" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="55%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+        </defs>
+        {GLYPH_BARS.map((scale, index) => {
+          const barHeight = 9 + scale * 22;
+          return (
+            <rect
+              className="animate-eq"
+              fill="url(#vibeGlyphGrad)"
+              height={barHeight}
+              key={index}
+              rx="1.8"
+              style={{
+                animationDelay: `${index * 0.13}s`,
+                animationDuration: `${1.05 + index * 0.17}s`,
+                transformBox: "fill-box",
+                transformOrigin: "center",
+              }}
+              width="3.4"
+              x={5 + index * 7.3}
+              y={20 - barHeight / 2}
+            />
+          );
+        })}
+      </svg>
+    </span>
+  );
+}
+
 function BrandMark({ compact = false }) {
   return (
     <div className="flex items-center gap-3">
-      <div
-        className={`flex shrink-0 items-center justify-center rounded-2xl ${ACCENT_GRADIENT} text-[#05060f] shadow-[0_0_40px_rgba(34,211,238,0.3)] ${
-          compact ? "size-9" : "size-11"
-        }`}
-      >
-        <Waves className={compact ? "size-4" : "size-5"} />
-      </div>
-      <div>
-        <div className={`font-semibold tracking-tight text-white ${compact ? "text-base" : "text-lg"}`}>
-          Vibe Shuffle
+      <WaveGlyph size={compact ? 34 : 46} />
+      <div className="leading-none">
+        <div
+          className={`font-bold lowercase tracking-tight text-white ${compact ? "text-xl" : "text-2xl"}`}
+          style={{ letterSpacing: "-0.035em" }}
+        >
+          vibe
+          <span className={ACCENT_TEXT_GRADIENT}> shuffle</span>
+          <span className="ml-1 inline-block size-1.5 rounded-full bg-violet-400 align-middle shadow-[0_0_10px_rgba(167,139,250,0.9)] animate-pulse" />
         </div>
         {!compact ? (
-          <p className="text-sm text-slate-400">Music that adapts to your state of mind.</p>
+          <p className="mt-2 text-sm text-slate-400">Music that adapts to your state of mind.</p>
         ) : null}
       </div>
     </div>
@@ -1582,11 +1626,21 @@ function SetupScreen({
   const spotifyStepComplete = spotifyAuth.authenticated && spotifyPlayer.ready;
   const physiologyReady = !physiology.connected || physiology.status === "ready";
 
-  // The hero headline cycles through the four moods on its own.
+  // The hero headline cycles through the four moods on its own. It holds the
+  // first word while the page builds in, then starts swapping — and swaps fast.
   const [cycleIndex, setCycleIndex] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setCycleIndex((value) => (value + 1) % MOODS.length), 2800);
-    return () => window.clearInterval(id);
+    let intervalId;
+    const startId = window.setTimeout(() => {
+      intervalId = window.setInterval(
+        () => setCycleIndex((value) => (value + 1) % MOODS.length),
+        1700,
+      );
+    }, 1500);
+    return () => {
+      window.clearTimeout(startId);
+      if (intervalId) window.clearInterval(intervalId);
+    };
   }, []);
   const activeMood = MOODS[cycleIndex];
 
@@ -1613,54 +1667,68 @@ function SetupScreen({
             : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
 
   return (
-    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl animate-fade-in flex-col justify-center gap-10 px-4 py-12 sm:px-6">
-      {/* mood-tinted ambient glow that follows the active mood */}
+    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-12 px-4 py-12 sm:px-6">
+      {/* mood-tinted ambient glow that follows the active mood — two breathing
+          layers so the hue keeps radiating outward behind the headline */}
       <div
         aria-hidden="true"
-        className="pointer-events-none fixed left-1/2 top-1/3 -z-10 size-[680px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[150px]"
+        className="pointer-events-none fixed left-1/2 top-1/3 -z-10 size-[860px] animate-radiate rounded-full blur-[170px]"
         style={{
-          background: `radial-gradient(circle, ${activeMood.accent}33, transparent 65%)`,
+          background: `radial-gradient(circle, ${activeMood.accent}55, transparent 60%)`,
+          transition: "background 1.2s ease",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed left-1/2 top-1/3 -z-10 size-[440px] animate-radiate rounded-full blur-[120px]"
+        style={{
+          animationDelay: "1.4s",
+          background: `radial-gradient(circle, ${activeMood.accent}66, transparent 65%)`,
           transition: "background 1.2s ease",
         }}
       />
 
-      <div className="flex flex-col items-center gap-8 text-center">
-        <BrandMark compact />
+      <div className="flex flex-col items-center gap-10 text-center">
+        <div className="animate-rise-up">
+          <BrandMark compact />
+        </div>
         <div>
-          <h1 className="mx-auto max-w-2xl text-4xl font-semibold leading-[1.08] tracking-tight text-white sm:text-6xl">
-            Music tuned
-            <br />
-            to your{" "}
-            <span className="relative inline-block align-bottom">
-              <span
-                key={activeMood.key}
-                className="relative z-10 inline-block animate-word-in"
-                style={{
-                  color: activeMood.accent,
-                  textShadow: `0 0 36px ${activeMood.accent}66`,
-                }}
-              >
-                {activeMood.label}
+          <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-[1.0] tracking-tight text-white sm:text-7xl lg:text-8xl">
+            <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
+              Music tuned
+            </span>
+            <span className="block animate-rise-up" style={{ animationDelay: "320ms" }}>
+              to your{" "}
+              <span className="relative inline-block align-bottom">
+                <span
+                  className="relative z-10 inline-block animate-word-in"
+                  key={activeMood.key}
+                  style={{
+                    color: activeMood.accent,
+                    textShadow: `0 0 24px ${activeMood.accent}aa, 0 0 60px ${activeMood.accent}55`,
+                  }}
+                >
+                  {activeMood.label}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="absolute -bottom-1 left-0 right-0 h-3 origin-left animate-highlight-wipe rounded-full blur-[1px] sm:h-4 lg:h-5"
+                  key={`${activeMood.key}-bar`}
+                  style={{
+                    background: `linear-gradient(90deg, ${activeMood.accent}, ${activeMood.accent}22)`,
+                    boxShadow: `0 6px 30px ${activeMood.accent}66`,
+                  }}
+                />
               </span>
-              <span
-                key={`${activeMood.key}-bar`}
-                aria-hidden="true"
-                className="absolute -bottom-1 left-0 right-0 h-3 origin-left animate-highlight-wipe rounded-full blur-[1px] sm:h-4"
-                style={{
-                  background: `linear-gradient(90deg, ${activeMood.accent}, ${activeMood.accent}22)`,
-                  boxShadow: `0 6px 24px ${activeMood.accent}55`,
-                }}
-              />
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-slate-400">
-            Two short listening blocks from a curated set of {songCount} tracks. Your expression and
-            optional heart-rate signals stay local in this browser — only your ratings are saved.
-          </p>
         </div>
       </div>
 
-      <div className="grid gap-3">
+      <div
+        className="mx-auto grid w-full max-w-2xl animate-rise-up gap-3"
+        style={{ animationDelay: "720ms" }}
+      >
         <SetupStep complete={spotifyStepComplete} index={1} title="Connect Spotify">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <span>{spotifyStatusText}</span>
@@ -1726,7 +1794,10 @@ function SetupScreen({
         </SetupStep>
       </div>
 
-      <div className="flex flex-col items-center gap-4">
+      <div
+        className="flex animate-rise-up flex-col items-center gap-4"
+        style={{ animationDelay: "880ms" }}
+      >
         <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
           Begin session
           <SkipForward className="size-4" />
