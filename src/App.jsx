@@ -1424,16 +1424,15 @@ function HeroArtwork() {
       <div className="absolute inset-y-0 right-0 flex items-center justify-end">
         <img
           alt=""
-          className="h-[44vh] w-auto max-h-[760px] max-w-none animate-fade-in opacity-[0.18] sm:h-[72vh] sm:opacity-[0.38]"
+          className="h-[50vh] w-auto max-h-[860px] max-w-none animate-fade-in opacity-30 sm:h-[78vh] sm:opacity-[0.55]"
           src={heroListener}
           style={{ animationDelay: "120ms" }}
         />
       </div>
-      {/* dissolve the artwork softly into the background on every edge */}
-      <div className="absolute inset-0 bg-[radial-gradient(68%_78%_at_72%_48%,transparent_26%,rgba(5,6,15,0.65)_70%,#05060f_100%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,#05060f_0%,rgba(5,6,15,0.82)_26%,transparent_70%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-52 bg-gradient-to-t from-[#05060f] to-transparent" />
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#05060f] to-transparent" />
+      {/* keep the text side readable and melt the top/bottom edges into the page */}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,#05060f_0%,rgba(5,6,15,0.72)_24%,transparent_62%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-[#05060f] to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#05060f] to-transparent" />
     </div>
   );
 }
