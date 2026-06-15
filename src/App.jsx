@@ -1410,6 +1410,91 @@ function WaveGlyph({ size = 40 }) {
   );
 }
 
+// Original hero illustration: a front-facing listener wearing headphones with
+// sound waves radiating from each ear cup. Sits semi-transparent behind the
+// headline as an atmospheric backdrop (the app reads your face + plays music).
+function HeroArtwork() {
+  const earY = 259;
+  const waves = [0, 1, 2];
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed left-1/2 top-[40%] -z-10 w-[min(84vw,540px)] -translate-x-1/2 -translate-y-1/2 opacity-[0.16] sm:opacity-[0.4]"
+    >
+      <svg
+        className="h-auto w-full animate-fade-in"
+        fill="none"
+        style={{ animationDelay: "120ms" }}
+        viewBox="0 0 760 620"
+      >
+        <defs>
+          <linearGradient id="heroFigure" x1="0" x2="0.35" y1="0" y2="1">
+            <stop offset="0%" stopColor="#67e8f9" />
+            <stop offset="45%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+          <radialGradient id="heroHalo" cx="50%" cy="40%" r="58%">
+            <stop offset="0%" stopColor="#7dd3fc" stopOpacity="0.5" />
+            <stop offset="55%" stopColor="#a78bfa" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
+          </radialGradient>
+          <linearGradient id="heroWave" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+        </defs>
+
+        {/* halo glow behind the head */}
+        <ellipse cx="380" cy="245" fill="url(#heroHalo)" rx="320" ry="300" />
+
+        {/* sound waves flanking each ear cup */}
+        {waves.map((i) => {
+          const h = 44 + i * 22;
+          const d = 26 + i * 22;
+          const opacity = 0.55 - i * 0.15;
+          return (
+            <g key={i} opacity={opacity}>
+              <path
+                d={`M 190 ${earY - h} Q ${190 - d} ${earY} 190 ${earY + h}`}
+                stroke="url(#heroWave)"
+                strokeLinecap="round"
+                strokeWidth="6"
+              />
+              <path
+                d={`M 570 ${earY - h} Q ${570 + d} ${earY} 570 ${earY + h}`}
+                stroke="url(#heroWave)"
+                strokeLinecap="round"
+                strokeWidth="6"
+              />
+            </g>
+          );
+        })}
+
+        {/* shoulders */}
+        <path
+          d="M150 610 C 178 472, 272 416, 380 416 C 488 416, 582 472, 610 610 Z"
+          fill="url(#heroFigure)"
+        />
+        {/* neck */}
+        <rect fill="url(#heroFigure)" height="100" rx="34" width="74" x="343" y="352" />
+        {/* head */}
+        <ellipse cx="380" cy="240" fill="url(#heroFigure)" rx="135" ry="150" />
+        {/* headphone band over the top */}
+        <path
+          d="M223 210 A 165 178 0 0 1 537 210"
+          fill="none"
+          stroke="url(#heroFigure)"
+          strokeLinecap="round"
+          strokeWidth="26"
+        />
+        {/* ear cups */}
+        <rect fill="#a5f3fc" height="108" opacity="0.92" rx="26" width="52" x="196" y="205" />
+        <rect fill="#c4b5fd" height="108" opacity="0.92" rx="26" width="52" x="512" y="205" />
+      </svg>
+    </div>
+  );
+}
+
 function BrandMark({ compact = false }) {
   return (
     <div className="flex items-center gap-3">
@@ -1688,12 +1773,14 @@ function SetupScreen({
         }}
       />
 
-      <div className="flex flex-col items-center gap-10 text-center">
+      <HeroArtwork />
+
+      <div className="relative z-10 flex flex-col items-center gap-10 text-center">
         <div className="animate-rise-up">
           <BrandMark compact />
         </div>
         <div>
-          <h1 className="mx-auto max-w-4xl text-5xl font-bold leading-[1.0] tracking-tight text-white sm:text-7xl lg:text-8xl">
+          <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-[1.04] tracking-tight text-white sm:text-7xl lg:text-8xl">
             <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
               Music tuned
             </span>
