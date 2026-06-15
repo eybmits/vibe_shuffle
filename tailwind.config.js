@@ -65,6 +65,17 @@ export default {
           "0%, 100%": { transform: "scaleY(0.4)" },
           "50%": { transform: "scaleY(1)" },
         },
+        "pulse-ring": {
+          "0%": { transform: "scale(0.92)", opacity: "0.5" },
+          "75%, 100%": { transform: "scale(1.65)", opacity: "0" },
+        },
+        heartbeat: {
+          "0%, 100%": { transform: "scale(1)" },
+          "12%": { transform: "scale(1.22)" },
+          "24%": { transform: "scale(1)" },
+          "36%": { transform: "scale(1.14)" },
+          "50%": { transform: "scale(1)" },
+        },
       },
       animation: {
         "soft-pulse": "soft-pulse 3s ease-in-out infinite",
@@ -79,6 +90,8 @@ export default {
         "rise-up": "rise-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both",
         radiate: "radiate 7s ease-in-out infinite",
         eq: "eq 1.2s ease-in-out infinite",
+        "pulse-ring": "pulse-ring 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite",
+        heartbeat: "heartbeat 2s ease-in-out infinite",
       },
     },
   },

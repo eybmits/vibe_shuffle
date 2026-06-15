@@ -1635,6 +1635,73 @@ function SetupStep({ children, complete, index, title }) {
   );
 }
 
+// Accent "Enable" pill used to sell the physiological signals. `pulse` adds a
+// living heartbeat to the icon (used for the heart-rate sensor).
+function EnableButton({ accent, children, icon: Icon, pulse = false, ...props }) {
+  return (
+    <button
+      className="group inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-[#05060f] transition hover:-translate-y-0.5 active:scale-95"
+      style={{
+        background: `linear-gradient(135deg, ${accent}, ${accent}bb)`,
+        boxShadow: `0 12px 34px ${accent}44`,
+      }}
+      type="button"
+      {...props}
+    >
+      {Icon ? <Icon className={`size-4 ${pulse ? "animate-heartbeat" : ""}`} /> : null}
+      {children}
+    </button>
+  );
+}
+
+// A physiological-signal feature card (camera/expression, heart-rate). Sells the
+// signal with a glowing icon + a live pulse ring when active.
+function SignalFeatureCard({ accent, active, children, description, icon: Icon, statusText, tag, title }) {
+  return (
+    <div
+      className={`${GLASS_CARD} relative overflow-hidden p-5 transition-all duration-300 hover:-translate-y-1`}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full blur-3xl transition-opacity duration-500"
+        style={{ background: `${accent}33`, opacity: active ? 1 : 0.45 }}
+      />
+      <div className="relative flex items-start gap-4">
+        <div className="relative size-12 shrink-0">
+          {active ? (
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 animate-pulse-ring rounded-2xl"
+              style={{ boxShadow: `0 0 0 2px ${accent}` }}
+            />
+          ) : null}
+          <span
+            className="relative flex size-12 items-center justify-center rounded-2xl border"
+            style={{ background: `${accent}1f`, borderColor: `${accent}55`, color: accent }}
+          >
+            <Icon className="size-6" />
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-white">{title}</span>
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+              style={{ background: `${accent}1f`, color: accent }}
+            >
+              {tag}
+            </span>
+          </div>
+          <p className="mt-1.5 text-sm leading-6 text-slate-400">
+            {active ? statusText : description}
+          </p>
+          <div className="mt-4">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SetupScreen({
   cameraReady,
   face,
@@ -1756,7 +1823,7 @@ function SetupScreen({
       </div>
 
       <div
-        className="mx-auto grid w-full max-w-2xl animate-rise-up gap-3"
+        className="mx-auto flex w-full max-w-2xl animate-rise-up flex-col gap-6"
         style={{ animationDelay: "720ms" }}
       >
         <SetupStep complete={spotifyStepComplete} index={1} title="Connect Spotify">
@@ -1774,54 +1841,88 @@ function SetupScreen({
           </div>
         </SetupStep>
 
-        <SetupStep complete index={2} title="Curated music ready">
-          <span>
-            {songCount} well-known tracks (balanced across calm, energetic, tense and melancholic)
-            are ready for the session.
-          </span>
-        </SetupStep>
-
-        <SetupStep complete={cameraReady} index={3} title="Camera signal (optional)">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              {cameraReady
-                ? "Running — keep a relaxed face; your neutral baseline calibrates in the background."
-                : face.error || "Local expression detection helps the adaptive block."}
-            </span>
-            {!cameraReady ? (
-              <GhostButton className="shrink-0" onClick={onStartCamera}>
-                Enable
-              </GhostButton>
-            ) : null}
-          </div>
-          {face.status === "loading" || cameraReady ? (
-            <div className="mt-3 h-28 w-44 overflow-hidden rounded-xl border border-white/10 bg-black/50">
-              <video
-                aria-label="Local camera preview"
-                className="h-full w-full scale-x-[-1] object-cover opacity-90"
-                muted
-                playsInline
-                ref={face.setVideoRef}
-              />
+        {/* Sell the two on-device physiological signals */}
+        <div>
+          <div className="mb-4 text-center">
+            <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+              <Sparkles className="size-3.5 text-cyan-300" />
+              Live · on-device
             </div>
-          ) : null}
-        </SetupStep>
-
-        <SetupStep complete={physiologyReady && physiology.connected} index={4} title="Heart-rate sensor (optional)">
-          <div className="flex flex-col gap-3">
-            <span>{physiologyStatusText}</span>
-            {physiology.status === "idle" || physiology.status === "error" ? (
-              <div className="flex flex-wrap gap-2">
-                <GhostButton onClick={onConnectHeartSensor}>Connect</GhostButton>
-                <GhostButton onClick={onStartMockHeartSensor}>Demo</GhostButton>
-              </div>
-            ) : physiology.connected ? (
-              <GhostButton className="w-fit" onClick={onDisconnectHeartSensor}>
-                Skip ECG
-              </GhostButton>
-            ) : null}
+            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
+              Tuned to two physiological signals
+            </h2>
+            <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-slate-400">
+              Your expression and heart rate shape every track — read locally in your browser, never
+              uploaded. Connect one or both.
+            </p>
           </div>
-        </SetupStep>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SignalFeatureCard
+              accent="#22d3ee"
+              active={cameraReady}
+              description="A glance at your camera maps how positive or negative you feel — the valence axis."
+              icon={Camera}
+              statusText="Running — keep a relaxed face; your neutral baseline calibrates in the background."
+              tag="Valence"
+              title="Facial expression"
+            >
+              {cameraReady ? (
+                <div className="h-28 w-full max-w-[180px] overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                  <video
+                    aria-label="Local camera preview"
+                    className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                    muted
+                    playsInline
+                    ref={face.setVideoRef}
+                  />
+                </div>
+              ) : face.status === "loading" ? (
+                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
+                  <span className="size-2 animate-pulse rounded-full bg-cyan-300" />
+                  Starting camera…
+                </span>
+              ) : (
+                <EnableButton accent="#22d3ee" icon={Camera} onClick={onStartCamera}>
+                  Enable camera
+                </EnableButton>
+              )}
+            </SignalFeatureCard>
+
+            <SignalFeatureCard
+              accent="#fb7185"
+              active={physiology.connected}
+              description="An optional BLE heart-rate sensor reads how activated or calm your body is — the arousal axis."
+              icon={HeartPulse}
+              statusText={physiologyStatusText}
+              tag="Arousal"
+              title="Heart rate & HRV"
+            >
+              {physiology.status === "idle" || physiology.status === "error" ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <EnableButton accent="#fb7185" icon={HeartPulse} onClick={onConnectHeartSensor} pulse>
+                    Enable sensor
+                  </EnableButton>
+                  <button
+                    className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
+                    onClick={onStartMockHeartSensor}
+                    type="button"
+                  >
+                    Try demo
+                  </button>
+                </div>
+              ) : physiology.connected ? (
+                <button
+                  className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
+                  onClick={onDisconnectHeartSensor}
+                  type="button"
+                >
+                  Skip this signal
+                </button>
+              ) : null}
+            </SignalFeatureCard>
+          </div>
+        </div>
       </div>
 
       <div
