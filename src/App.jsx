@@ -1419,17 +1419,20 @@ function WaveGlyph({ size = 40 }) {
 function HeroArtwork() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {/* artwork anchored to the top-right, capped to (under) its native size */}
-      <div className="absolute -top-4 right-0 w-[72vw] max-w-[320px] sm:-top-6 sm:w-[52vw] sm:max-w-[520px] lg:max-w-[600px]">
+      {/* large artwork bleeding off the right edge (brain.fm style), vertically
+          centred and capped to its native size so it never upscales */}
+      <div className="absolute inset-y-0 right-0 flex items-center justify-end">
         <img
           alt=""
-          className="h-auto w-full animate-fade-in opacity-40 sm:opacity-95"
+          className="h-[48vh] w-auto max-h-[788px] max-w-none animate-fade-in opacity-40 sm:h-[80vh] sm:opacity-100"
           src={heroListener}
           style={{ animationDelay: "120ms" }}
         />
-        {/* fade the artwork's edges out to black so it melts into the corner */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_62%_72%_at_70%_40%,transparent_42%,rgba(5,6,15,0.6)_66%,#05060f_90%)]" />
       </div>
+      {/* fade the left/text side and the edges out to black */}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,#05060f_0%,rgba(5,6,15,0.97)_22%,rgba(5,6,15,0.55)_48%,transparent_78%)]" />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#05060f] to-transparent" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[#05060f] to-transparent" />
     </div>
   );
 }
@@ -1691,7 +1694,7 @@ function SetupScreen({
             : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
 
   return (
-    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-12 px-4 py-12 sm:px-6">
+    <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-12 px-4 py-12 sm:px-6">
       {/* mood-tinted ambient glow that follows the active mood — two breathing
           layers so the hue keeps radiating outward behind the headline */}
       <div
@@ -1714,12 +1717,12 @@ function SetupScreen({
 
       <HeroArtwork />
 
-      <div className="relative z-10 flex flex-col items-center gap-10 text-center">
+      <div className="relative z-10 flex flex-col items-center gap-8 text-center lg:items-start lg:text-left">
         <div className="animate-rise-up">
           <BrandMark compact />
         </div>
         <div>
-          <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-[1.04] tracking-tight text-white sm:text-7xl lg:text-8xl">
+          <h1 className="mx-auto max-w-2xl text-4xl font-bold leading-[1.04] tracking-tight text-white sm:text-6xl lg:mx-0 lg:max-w-xl lg:text-7xl">
             <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
               Music tuned
             </span>
@@ -1752,7 +1755,7 @@ function SetupScreen({
       </div>
 
       <div
-        className="mx-auto grid w-full max-w-2xl animate-rise-up gap-3"
+        className="mx-auto grid w-full max-w-2xl animate-rise-up gap-3 lg:mx-0"
         style={{ animationDelay: "720ms" }}
       >
         <SetupStep complete={spotifyStepComplete} index={1} title="Connect Spotify">
@@ -1821,7 +1824,7 @@ function SetupScreen({
       </div>
 
       <div
-        className="flex animate-rise-up flex-col items-center gap-4"
+        className="mx-auto flex w-full max-w-2xl animate-rise-up flex-col items-center gap-4 lg:mx-0 lg:items-start"
         style={{ animationDelay: "880ms" }}
       >
         <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
