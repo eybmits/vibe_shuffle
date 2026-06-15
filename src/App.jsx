@@ -1852,8 +1852,7 @@ function SetupScreen({
               Tuned to two physiological signals
             </h2>
             <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-slate-400">
-              Your expression and heart rate shape every track — read locally in your browser, never
-              uploaded. Connect one or both.
+              Your expression and heart rate shape every track.
             </p>
           </div>
 
