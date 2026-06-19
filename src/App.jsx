@@ -10,6 +10,7 @@ import {
   Music2,
   Pause,
   Play,
+  ArrowRight,
   RotateCcw,
   ShieldCheck,
   SkipForward,
@@ -1471,7 +1472,7 @@ function SectionLabel({ children, icon: Icon }) {
 function PrimaryButton({ children, className = "", ...props }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-full ${ACCENT_GRADIENT} px-7 py-3.5 text-sm font-semibold text-[#05060f] shadow-[0_16px_50px_rgba(34,211,238,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_60px_rgba(139,92,246,0.35)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none disabled:hover:translate-y-0 ${className}`}
+      className={`inline-flex items-center justify-center gap-2.5 rounded-full bg-white px-8 py-4 text-sm font-bold uppercase tracking-[0.12em] text-[#05060f] shadow-[0_16px_50px_rgba(255,255,255,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_rgba(255,255,255,0.3)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35 disabled:shadow-none disabled:hover:translate-y-0 ${className}`}
       type="button"
       {...props}
     >
@@ -1710,6 +1711,46 @@ function SignalFeatureCard({ accent, active, children, description, icon: Icon, 
   );
 }
 
+// brain.fm-style top navigation: brand mark on the left, content links on the
+// right. Links open the project docs/source in a new tab.
+function TopNav() {
+  const linkClass =
+    "text-sm font-medium text-slate-300 transition hover:text-white";
+  return (
+    <header className="absolute inset-x-0 top-0 z-20 animate-rise-up">
+      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
+        <BrandMark compact />
+        <div className="flex items-center gap-5 sm:gap-8">
+          <a
+            className={linkClass}
+            href="https://github.com/eybmits/vibe_shuffle/blob/main/docs/experiment_protocol.md"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Read the science
+          </a>
+          <a
+            className={`hidden sm:inline ${linkClass}`}
+            href="https://github.com/eybmits/vibe_shuffle/blob/main/docs/privacy_and_limitations.md"
+            rel="noreferrer"
+            target="_blank"
+          >
+            Privacy
+          </a>
+          <a
+            className={`hidden sm:inline ${linkClass}`}
+            href="https://github.com/eybmits/vibe_shuffle"
+            rel="noreferrer"
+            target="_blank"
+          >
+            GitHub
+          </a>
+        </div>
+      </nav>
+    </header>
+  );
+}
+
 function SetupScreen({
   cameraReady,
   face,
@@ -1791,12 +1832,11 @@ function SetupScreen({
         }}
       />
 
+      <TopNav />
+
       <HeroArtwork />
 
       <div className="relative z-10 flex flex-col items-center gap-8 text-center">
-        <div className="animate-rise-up">
-          <BrandMark compact />
-        </div>
         <div>
           <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-[1.04] tracking-tight text-white sm:text-7xl lg:text-8xl">
             <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
@@ -1934,7 +1974,7 @@ function SetupScreen({
       >
         <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
           Begin session
-          <SkipForward className="size-4" />
+          <ArrowRight className="size-4" />
         </PrimaryButton>
       </div>
     </div>
@@ -2036,7 +2076,7 @@ function RatingModal({ isLastTrial, onSubmit, open, song }) {
         <div className="mt-7 flex items-center justify-end">
           <PrimaryButton disabled={!value} onClick={handleNext}>
             {onLike ? "Next" : isLastTrial ? "Finish session" : "Next track"}
-            <SkipForward className="size-4" />
+            <ArrowRight className="size-4" />
           </PrimaryButton>
         </div>
       </section>
