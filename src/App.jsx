@@ -12,6 +12,7 @@ import {
   Play,
   ArrowRight,
   RotateCcw,
+  ScanFace,
   ShieldCheck,
   SkipForward,
   Sparkles,
@@ -1646,10 +1647,10 @@ function SpotifyGlyph({ className = "" }) {
 
 // Accent "Enable" pill used to sell the physiological signals. `pulse` adds a
 // living heartbeat to the icon (used for the heart-rate sensor).
-function EnableButton({ accent, children, icon: Icon, pulse = false, ...props }) {
+function EnableButton({ accent, children, className = "", icon: Icon, pulse = false, ...props }) {
   return (
     <button
-      className="group inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-[#05060f] transition hover:-translate-y-0.5 active:scale-95"
+      className={`group inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-[#05060f] transition hover:-translate-y-0.5 active:scale-95 ${className}`}
       style={{
         background: `linear-gradient(135deg, ${accent}, ${accent}bb)`,
         boxShadow: `0 12px 34px ${accent}44`,
@@ -1706,6 +1707,95 @@ function SignalFeatureCard({ accent, active, children, description, icon: Icon, 
           </p>
           <div className="mt-4">{children}</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// A single label/value row inside a signal preview card.
+function SignalMetric({ badge, badgeStyle, label, value, valueClass = "text-white" }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-0.5">
+      <span className="text-[11px] uppercase tracking-[0.12em] text-slate-500">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className={`text-sm font-semibold ${valueClass}`}>{value}</span>
+        {badge ? (
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={badgeStyle}>
+            {badge}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+// A small static ECG/heartbeat sparkline.
+function EcgLine({ color }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="my-1 h-8 w-full"
+      fill="none"
+      preserveAspectRatio="none"
+      viewBox="0 0 200 40"
+    >
+      <polyline
+        points="0,20 28,20 36,9 44,31 52,20 92,20 100,13 108,27 116,20 152,20 160,7 168,33 176,20 200,20"
+        stroke={color}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+// brain.fm-style signal preview card: an eyebrow label + live/preview status, an
+// icon+title header, a few sample metric rows (the children), and a connect
+// action at the bottom.
+function SignalPreviewCard({ accent, action, active, children, eyebrow, icon: Icon, title }) {
+  return (
+    <div
+      className={`${GLASS_CARD} relative flex flex-col overflow-hidden p-5 transition-all duration-300 hover:-translate-y-1`}
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-12 size-36 rounded-full blur-3xl transition-opacity duration-500"
+        style={{ background: `${accent}33`, opacity: active ? 1 : 0.5 }}
+      />
+      <div className="relative flex flex-1 flex-col">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {eyebrow}
+          </span>
+          {active ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+              style={{ color: accent }}
+            >
+              <span
+                className="size-1.5 rounded-full"
+                style={{ background: accent, boxShadow: `0 0 8px ${accent}` }}
+              />
+              Live
+            </span>
+          ) : (
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+              Preview
+            </span>
+          )}
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <span
+            className="flex size-11 shrink-0 items-center justify-center rounded-2xl border"
+            style={{ background: `${accent}1f`, borderColor: `${accent}55`, color: accent }}
+          >
+            <Icon className="size-5" />
+          </span>
+          <span className="text-lg font-semibold leading-tight text-white">{title}</span>
+        </div>
+        <div className="mt-4 space-y-1">{children}</div>
+        {action ? <div className="mt-5">{action}</div> : null}
       </div>
     </div>
   );
@@ -1871,9 +1961,110 @@ function SetupScreen({
       </div>
 
       <div
-        className="mx-auto flex w-full max-w-2xl animate-rise-up flex-col gap-6"
+        className="mx-auto flex w-full max-w-3xl animate-rise-up flex-col gap-5"
         style={{ animationDelay: "720ms" }}
       >
+        {/* Two on-device signal previews — brain.fm style */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Physical signals — heart-rate variability */}
+          <SignalPreviewCard
+            accent="#fb7185"
+            action={
+              physiology.status === "idle" || physiology.status === "error" ? (
+                <EnableButton
+                  accent="#fb7185"
+                  className="w-full"
+                  icon={HeartPulse}
+                  onClick={onConnectHeartSensor}
+                  pulse
+                >
+                  Connect sensor
+                </EnableButton>
+              ) : physiology.connected ? (
+                <button
+                  className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
+                  onClick={onDisconnectHeartSensor}
+                  type="button"
+                >
+                  Disconnect sensor
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
+                  <span className="size-2 animate-pulse rounded-full bg-rose-300" />
+                  Connecting…
+                </span>
+              )
+            }
+            active={physiology.connected}
+            eyebrow="Physical signals"
+            icon={HeartPulse}
+            title="Heart Rate Variability"
+          >
+            {physiology.connected ? (
+              <p className="text-sm leading-6 text-slate-300">{physiologyStatusText}</p>
+            ) : (
+              <>
+                <SignalMetric
+                  badge="Good"
+                  badgeStyle={{ background: "rgba(16,185,129,0.16)", color: "#34d399" }}
+                  label="Recovery"
+                  value="72%"
+                  valueClass="text-emerald-400"
+                />
+                <EcgLine color="#34d399" />
+                <SignalMetric label="Stress Load" value="Low" valueClass="text-emerald-400" />
+                <SignalMetric label="Breath Rhythm" value="Detected" valueClass="text-sky-300" />
+              </>
+            )}
+          </SignalPreviewCard>
+
+          {/* Emotional signals — facial expression */}
+          <SignalPreviewCard
+            accent="#22d3ee"
+            action={
+              cameraReady ? null : face.status === "loading" ? (
+                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
+                  <span className="size-2 animate-pulse rounded-full bg-cyan-300" />
+                  Starting camera…
+                </span>
+              ) : (
+                <EnableButton accent="#22d3ee" className="w-full" icon={Camera} onClick={onStartCamera}>
+                  Connect camera
+                </EnableButton>
+              )
+            }
+            active={cameraReady}
+            eyebrow="Emotional signals"
+            icon={ScanFace}
+            title="Facial Expression"
+          >
+            {cameraReady ? (
+              <div className="h-32 w-full overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                <video
+                  aria-label="Local camera preview"
+                  className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                  muted
+                  playsInline
+                  ref={face.setVideoRef}
+                />
+              </div>
+            ) : (
+              <>
+                <SignalMetric
+                  badge="Positive"
+                  badgeStyle={{ background: "rgba(34,211,238,0.16)", color: "#67e8f9" }}
+                  label="Mood"
+                  value="Focused"
+                  valueClass="text-sky-300"
+                />
+                <SignalMetric label="Tension" value="Medium" valueClass="text-amber-300" />
+                <SignalMetric label="Fatigue" value="Rising" valueClass="text-rose-300" />
+              </>
+            )}
+          </SignalPreviewCard>
+        </div>
+
+        {/* Spotify hub — connect + start the session */}
         <SignalFeatureCard
           accent="#1db954"
           active={spotifyStepComplete}
@@ -1883,99 +2074,26 @@ function SetupScreen({
           tag="Required"
           title="Connect Spotify"
         >
-          {!spotifyAuth.authenticated ? (
-            <EnableButton accent="#1db954" icon={SpotifyGlyph} onClick={onConnectSpotify}>
-              Connect Spotify
-            </EnableButton>
-          ) : (
-            <button
-              className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
-              onClick={onDisconnectSpotify}
-              type="button"
-            >
-              Switch account
-            </button>
-          )}
+          <div className="space-y-4">
+            {!spotifyAuth.authenticated ? (
+              <EnableButton accent="#1db954" icon={SpotifyGlyph} onClick={onConnectSpotify}>
+                Connect Spotify
+              </EnableButton>
+            ) : (
+              <button
+                className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
+                onClick={onDisconnectSpotify}
+                type="button"
+              >
+                Switch account
+              </button>
+            )}
+            <PrimaryButton className="w-full" disabled={!setupReady} onClick={onStart}>
+              Begin session
+              <ArrowRight className="size-4" />
+            </PrimaryButton>
+          </div>
         </SignalFeatureCard>
-
-        {/* Sell the two on-device physiological signals */}
-        <div>
-          <div className="mb-4 text-center">
-            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
-              Tuned to two physiological signals
-            </h2>
-            <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-slate-400">
-              Your expression and heart rate shape every track.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SignalFeatureCard
-              accent="#22d3ee"
-              active={cameraReady}
-              description="A glance at your camera maps how positive or negative you feel — the valence axis."
-              icon={Camera}
-              statusText="Running — keep a relaxed face; your neutral baseline calibrates in the background."
-              tag="Valence"
-              title="Facial expression"
-            >
-              {cameraReady ? (
-                <div className="h-28 w-full max-w-[180px] overflow-hidden rounded-xl border border-white/10 bg-black/50">
-                  <video
-                    aria-label="Local camera preview"
-                    className="h-full w-full scale-x-[-1] object-cover opacity-90"
-                    muted
-                    playsInline
-                    ref={face.setVideoRef}
-                  />
-                </div>
-              ) : face.status === "loading" ? (
-                <span className="inline-flex items-center gap-2 text-sm text-slate-400">
-                  <span className="size-2 animate-pulse rounded-full bg-cyan-300" />
-                  Starting camera…
-                </span>
-              ) : (
-                <EnableButton accent="#22d3ee" icon={Camera} onClick={onStartCamera}>
-                  Enable camera
-                </EnableButton>
-              )}
-            </SignalFeatureCard>
-
-            <SignalFeatureCard
-              accent="#fb7185"
-              active={physiology.connected}
-              description="An optional BLE heart-rate sensor reads how activated or calm your body is — the arousal axis."
-              icon={HeartPulse}
-              statusText={physiologyStatusText}
-              tag="Arousal"
-              title="Heart rate & HRV"
-            >
-              {physiology.status === "idle" || physiology.status === "error" ? (
-                <EnableButton accent="#fb7185" icon={HeartPulse} onClick={onConnectHeartSensor} pulse>
-                  Enable sensor
-                </EnableButton>
-              ) : physiology.connected ? (
-                <button
-                  className="text-sm font-semibold text-slate-400 underline-offset-4 transition hover:text-white hover:underline"
-                  onClick={onDisconnectHeartSensor}
-                  type="button"
-                >
-                  Skip this signal
-                </button>
-              ) : null}
-            </SignalFeatureCard>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className="flex animate-rise-up flex-col items-center gap-4"
-        style={{ animationDelay: "880ms" }}
-      >
-        <PrimaryButton className="w-full sm:w-auto sm:min-w-64" disabled={!setupReady} onClick={onStart}>
-          Begin session
-          <ArrowRight className="size-4" />
-        </PrimaryButton>
       </div>
     </div>
   );
