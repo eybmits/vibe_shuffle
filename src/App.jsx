@@ -1861,11 +1861,7 @@ function SetupScreen({
         {/* Sell the two on-device physiological signals */}
         <div>
           <div className="mb-4 text-center">
-            <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-              <Sparkles className="size-3.5 text-cyan-300" />
-              Live · on-device
-            </div>
-            <h2 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
+            <h2 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
               Tuned to two physiological signals
             </h2>
             <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-slate-400">
