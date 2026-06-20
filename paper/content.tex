@@ -76,24 +76,62 @@ both axes default to the neutral midpoint $0.5$. Splitting each axis at $0.5$
 yields four quadrants---Energetic, Calm, Tense, and Melancholic---consistent with
 the circumplex model of affect~\cite{russell1980, posner2005}.
 
+\subsection{Music pool}
+The pool is a fixed set of 100 tracks built once from the public Kaggle
+\emph{Spotify Tracks Dataset} of real Spotify audio features~\cite{spotifydataset}.
+Every track carries Spotify's two affect-bearing features on $[0,1]$:
+\emph{valence}, the musical positivity of a track, and \emph{energy}, its
+perceived intensity and activity. We take valence as the track's valence
+coordinate and energy as its arousal coordinate, so each track $t$ inherits a
+fixed $(v_t, a_t)$ with no per-session lookup. Tracks are categorised by the same
+midpoint split used for the listener (\autoref{tab:quadrants}): \emph{Energetic}
+when $v_t \ge 0.5$ and $a_t \ge 0.5$, \emph{Calm} when valence is high but energy
+low, \emph{Tense} when valence is low but energy high, and \emph{Melancholic} when
+both are low. To assemble a balanced pool, the most popular, de-duplicated tracks
+with Spotify popularity $\ge 55$ were taken from each quadrant until 25 were
+collected, yielding 100 tracks split evenly across the four quadrants. The same
+pool is used for every participant, which keeps the Vibe-versus-Random comparison
+controlled and removes any dependence on a participant's personal library.
+
+\begin{table}[t]
+\caption{Track categorisation. Each track's quadrant is fixed from its Spotify
+valence $v_t$ and energy $a_t$ by splitting both axes at $0.5$; the pool holds 25
+tracks per quadrant.}
+\label{tab:quadrants}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Quadrant & Rule \\
+\midrule
+Energetic   & $v_t \ge 0.5,\ a_t \ge 0.5$ \\
+Calm        & $v_t \ge 0.5,\ a_t < 0.5$ \\
+Tense       & $v_t < 0.5,\ a_t \ge 0.5$ \\
+Melancholic & $v_t < 0.5,\ a_t < 0.5$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \subsection{Track selection}
-Each track in the pool carries pre-computed valence/arousal coordinates
-$(v_t, a_t)$. In a Vibe block, the next track minimises Euclidean distance to the
-fused target $(v^\star, a^\star)$, preferring the matching quadrant and penalising
-recently played tracks through a recency term $r(t)$:
+Each track's quadrant is fixed in advance from its $(v_t, a_t)$, so selection
+reduces to a draw over a candidate set. The fused listener state
+$(v^\star, a^\star)$ is mapped to its quadrant $q^\star$. In a Vibe block the next
+track is drawn from the mood-congruent quadrant only,
 \begin{equation}
-t^\star = \arg\min_{t}\;
-\bigl\lVert (v_t, a_t) - (v^\star, a^\star) \bigr\rVert_2 + \lambda\, r(t).
+t^\star \in \{\, t : \operatorname{quad}(t) = q^\star \,\},
 \end{equation}
-A Random block draws from the same pool using a per-session seed, so the order
-differs every run while the pool is held identical across conditions.
+with recently played tracks deprioritised so a block does not repeat songs. Within
+that set the specific track is fixed by a per-session seed, making each run
+reproducible yet different. A Random block applies the same seeded rule to the
+entire pool. The two conditions thus share an identical pool and an identical
+random mechanism; the \emph{only} manipulated variable is the quadrant constraint.
+For transparency the Euclidean distance between the detected state and each track
+is also computed and shown to the listener as a ``fit'' percentage, but it does
+not determine which track plays.
 
 \subsection{Validation protocol}
 The application implements a blinded, counterbalanced within-subject comparison.
-The pool comprises 100 curated tracks, 25 per quadrant, identical for every
-participant. A session contains two blocks---\texttt{random} and \texttt{vibe}---of
-five tracks each; block order is randomised per session and recorded for
-counterbalancing. Each track plays for 60\,s before the rating prompt opens, and
+A session contains two blocks---\texttt{random} and \texttt{vibe}---of five tracks
+each drawn from the shared pool of \autoref{tab:quadrants}; block order is
+randomised per session and recorded for counterbalancing. Each track plays for 60\,s before the rating prompt opens, and
 the condition is never revealed during the session. After each track, two 5-point
 questions are asked in sequence: \emph{liking} (``How much do you like this
 song?'') and \emph{mood-fit} (``How well did it fit your current mood?''). Mood-fit
