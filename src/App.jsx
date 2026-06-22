@@ -172,44 +172,116 @@ function formatSeconds(seconds) {
   return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
+// Catmull-Rom spline through every point: the curve passes through each sample
+// (unlike a midpoint bezier, which flattens into plateaus) so an HR trace reads
+// like a clean physiological monitor line rather than a staircase.
 function createSmoothPath(points) {
   if (!points.length) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
-  return points
-    .map((point, index) => {
-      if (index === 0) return `M ${point.x} ${point.y}`;
-      const previous = points[index - 1];
-      const controlX = (previous.x + point.x) / 2;
-      return `C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
-    })
-    .join(" ");
+  const d = [`M ${points[0].x} ${points[0].y}`];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] ?? points[i];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] ?? p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d.push(
+      `C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)} ${cp2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    );
+  }
+  return d.join(" ");
 }
 
-function buildHeartRateCurve(samples, width = 320, height = 96) {
+// A stable, nicely-rounded BPM axis. We snap the visible window to multiples of a
+// "nice" step (10/20/30 bpm) and keep the baseline in view, so gridlines stay put
+// and the trace doesn't visually rescale on every packet.
+function buildBpmScale(values, baseline) {
+  const all = Number.isFinite(baseline) ? [...values, baseline] : values;
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const dataSpan = hi - lo;
+  const step = dataSpan <= 26 ? 10 : dataSpan <= 70 ? 20 : 30;
+  let min = Math.floor((lo - step * 0.4) / step) * step;
+  let max = Math.ceil((hi + step * 0.4) / step) * step;
+  if ((max - min) / step < 2) max = min + step * 2;
+  min = Math.max(0, min);
+  const ticks = [];
+  for (let bpm = min; bpm <= max + 0.5; bpm += step) ticks.push(bpm);
+  return { max, min, step, ticks };
+}
+
+// Plot geometry in the SVG's own units. The SVG fills its box with
+// preserveAspectRatio="none", so any (x, y) here maps to (x/PLOT.w, y/PLOT.h) of
+// the container — which lets us drop crisp HTML axis labels at matching percentages.
+const HR_PLOT = {
+  width: 320,
+  height: 168,
+  left: 34,
+  right: 312,
+  top: 12,
+  bottom: 144,
+};
+
+function buildHeartRateCurve(samples, baseline) {
   const heartRates = samples
     .map((sample) => Number(sample.heartRateBpm))
     .filter((value) => Number.isFinite(value));
-  const values = heartRates.length ? heartRates : [66, 67, 66, 68, 67, 69, 68, 70, 69, 70];
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const paddedMin = min - 4;
-  const paddedMax = max + 4;
-  const range = Math.max(1, paddedMax - paddedMin);
-  const step = values.length > 1 ? width / (values.length - 1) : width;
+  const placeholder = !heartRates.length;
+  const values = placeholder
+    ? [66, 67, 66, 68, 67, 69, 71, 72, 70, 71, 73, 72]
+    : heartRates;
+
+  const { left, right, top, bottom } = HR_PLOT;
+  const plotW = right - left;
+  const plotH = bottom - top;
+  const scale = buildBpmScale(values, placeholder ? null : baseline);
+  const range = Math.max(1, scale.max - scale.min);
+  const toY = (bpm) => bottom - ((bpm - scale.min) / range) * plotH;
+  const xStep = values.length > 1 ? plotW / (values.length - 1) : 0;
+
   const points = values.map((value, index) => ({
     value,
-    x: Number((index * step).toFixed(2)),
-    y: Number((height - ((value - paddedMin) / range) * height).toFixed(2)),
+    x: Number((left + index * xStep).toFixed(2)),
+    y: Number(toY(value).toFixed(2)),
   }));
 
+  const path = createSmoothPath(points);
+  const last = samples.at(-1);
+  const first = samples[0];
+  const windowSeconds =
+    Number.isFinite(first?.timestamp) && Number.isFinite(last?.timestamp) && last.timestamp > first.timestamp
+      ? (last.timestamp - first.timestamp) / 1000
+      : Math.max(1, values.length - 1);
+
+  const yTicks = scale.ticks.map((bpm) => ({ bpm, y: Number(toY(bpm).toFixed(2)) }));
+  const xTicks = [0, 0.5, 1].map((fraction) => ({
+    fraction,
+    x: Number((left + fraction * plotW).toFixed(2)),
+    label: fraction === 1 ? "now" : `−${Math.round(windowSeconds * (1 - fraction))}s`,
+  }));
+  const gridX = [0.25, 0.5, 0.75].map((fraction) => Number((left + fraction * plotW).toFixed(2)));
+
+  const baselineY =
+    Number.isFinite(baseline) && baseline >= scale.min && baseline <= scale.max
+      ? Number(toY(baseline).toFixed(2))
+      : null;
+
   return {
-    areaPath: `${createSmoothPath(points)} L ${width} ${height} L 0 ${height} Z`,
+    areaPath: `${path} L ${right} ${bottom} L ${left} ${bottom} Z`,
+    baselineBpm: Number.isFinite(baseline) ? Math.round(baseline) : null,
+    baselineY,
     current: values.at(-1),
-    max,
-    min,
-    path: createSmoothPath(points),
+    gridX,
+    lastPoint: points.at(-1),
+    path,
+    placeholder,
     points,
+    xTicks,
+    yTicks,
   };
 }
 
@@ -1293,7 +1365,7 @@ function usePhysiologySensor() {
     mockIntervalRef.current = window.setInterval(() => {
       mockIndexRef.current += 1;
       applyMeasurement(createMockHeartRateMeasurement(mockIndexRef.current), "mock");
-    }, 1000);
+    }, 600);
   }, [applyMeasurement, stopMock]);
 
   const connectBle = useCallback(async () => {
@@ -1552,42 +1624,147 @@ function MoodMap({ mood }) {
 
 function HeartRateCurve({ physiology, summary }) {
   const samples = physiology.heartRateHistory ?? [];
-  const curve = buildHeartRateCurve(samples);
+  const baselineBpm = Number(summary?.baseline_hr_bpm);
+  const curve = buildHeartRateCurve(samples, baselineBpm);
   const hasLiveSamples = samples.length > 0;
-  const lastPoint = curve.points.at(-1);
+  const { left, right, top, bottom, width: W, height: H } = HR_PLOT;
+  const lastPoint = curve.lastPoint;
+  const pct = (value, total) => `${(value / total) * 100}%`;
 
   return (
-    <div className="relative h-24">
+    <div className="relative h-full min-h-[150px] w-full">
       <svg
         aria-hidden="true"
-        className="h-full w-full overflow-visible"
+        className="h-full w-full"
         preserveAspectRatio="none"
-        viewBox="0 0 320 96"
+        viewBox={`0 0 ${W} ${H}`}
       >
         <defs>
           <linearGradient id="hrCurveStroke" x1="0" x2="1" y1="0" y2="0">
             <stop offset="0%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#a78bfa" />
+            <stop offset="55%" stopColor="#818cf8" />
+            <stop offset="100%" stopColor="#c084fc" />
           </linearGradient>
           <linearGradient id="hrCurveArea" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.18" />
+            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.28" />
             <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
           </linearGradient>
+          <filter id="hrGlow" x="-20%" y="-40%" width="140%" height="180%">
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
-        <path d={curve.areaPath} fill="url(#hrCurveArea)" opacity={hasLiveSamples ? 1 : 0.3} />
+
+        {/* Coordinate grid: horizontal lines per BPM tick, vertical time divisions */}
+        <g stroke="#ffffff" strokeOpacity="0.06" vectorEffect="non-scaling-stroke">
+          {curve.yTicks.map((tick) => (
+            <line key={`gy-${tick.bpm}`} x1={left} x2={right} y1={tick.y} y2={tick.y} />
+          ))}
+          {curve.gridX.map((x) => (
+            <line key={`gx-${x}`} x1={x} x2={x} y1={top} y2={bottom} />
+          ))}
+        </g>
+        <rect
+          x={left}
+          y={top}
+          width={right - left}
+          height={bottom - top}
+          fill="none"
+          stroke="#ffffff"
+          strokeOpacity="0.12"
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {/* Resting-baseline reference */}
+        {hasLiveSamples && curve.baselineY != null ? (
+          <line
+            x1={left}
+            x2={right}
+            y1={curve.baselineY}
+            y2={curve.baselineY}
+            stroke="#94a3b8"
+            strokeOpacity="0.5"
+            strokeDasharray="2 4"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
+
+        <path
+          d={curve.areaPath}
+          fill="url(#hrCurveArea)"
+          opacity={hasLiveSamples ? 1 : 0.35}
+        />
         <path
           d={curve.path}
           fill="none"
-          opacity={hasLiveSamples ? 1 : 0.3}
+          filter={hasLiveSamples ? "url(#hrGlow)" : undefined}
+          opacity={hasLiveSamples ? 1 : 0.4}
           stroke="url(#hrCurveStroke)"
-          strokeDasharray={hasLiveSamples ? "0" : "7 9"}
+          strokeDasharray={hasLiveSamples ? "0" : "6 8"}
           strokeLinecap="round"
-          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeWidth="2.25"
+          vectorEffect="non-scaling-stroke"
         />
         {hasLiveSamples && lastPoint ? (
-          <circle className="animate-pulse" cx={lastPoint.x} cy={lastPoint.y} fill="#a78bfa" r="4" />
+          <>
+            <circle cx={lastPoint.x} cy={lastPoint.y} fill="#c084fc" fillOpacity="0.25" r="6">
+              <animate attributeName="r" values="4;9;4" dur="1.6s" repeatCount="indefinite" />
+              <animate attributeName="fill-opacity" values="0.35;0;0.35" dur="1.6s" repeatCount="indefinite" />
+            </circle>
+            <circle cx={lastPoint.x} cy={lastPoint.y} fill="#e9d5ff" r="2.6" />
+          </>
         ) : null}
       </svg>
+
+      {/* BPM axis labels (left gutter) */}
+      {hasLiveSamples
+        ? curve.yTicks.map((tick) => (
+            <span
+              key={`yl-${tick.bpm}`}
+              className="pointer-events-none absolute -translate-y-1/2 text-right text-[8px] font-medium tabular-nums tracking-tight text-slate-500"
+              style={{ top: pct(tick.y, H), left: 0, width: pct(left - 4, W) }}
+            >
+              {tick.bpm}
+            </span>
+          ))
+        : null}
+
+      {/* Time axis labels (bottom gutter) */}
+      {hasLiveSamples
+        ? curve.xTicks.map((tick) => (
+            <span
+              key={`xl-${tick.fraction}`}
+              className="pointer-events-none absolute text-[8px] font-medium tabular-nums tracking-tight text-slate-500"
+              style={{
+                top: pct(bottom + 4, H),
+                left: pct(tick.x, W),
+                transform:
+                  tick.fraction === 0
+                    ? "translateX(0)"
+                    : tick.fraction === 1
+                      ? "translateX(-100%)"
+                      : "translateX(-50%)",
+              }}
+            >
+              {tick.label}
+            </span>
+          ))
+        : null}
+
+      {/* Resting baseline tag */}
+      {hasLiveSamples && curve.baselineY != null ? (
+        <span
+          className="pointer-events-none absolute -translate-y-1/2 rounded bg-white/[0.06] px-1 text-[7px] font-semibold uppercase tracking-[0.1em] text-slate-400"
+          style={{ top: pct(curve.baselineY, H), right: pct(W - right + 2, W) }}
+        >
+          rest {curve.baselineBpm}
+        </span>
+      ) : null}
+
       {!hasLiveSamples ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
           {summary?.ecg_connected ? "Waiting for packets" : "No sensor"}
@@ -3099,8 +3276,10 @@ export default function App() {
           </SignalCard>
 
           <SignalCard icon={HeartPulse} label="Heart rate" status={heartRateLabel}>
-            <div className="flex aspect-square w-full flex-col justify-between rounded-2xl border border-white/10 bg-[#070a18] p-4">
-              <HeartRateCurve physiology={physiology} summary={physiologySummary} />
+            <div className="flex aspect-square w-full flex-col gap-3 rounded-2xl border border-white/10 bg-[#070a18] p-4">
+              <div className="min-h-0 flex-1">
+                <HeartRateCurve physiology={physiology} summary={physiologySummary} />
+              </div>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
                   <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
