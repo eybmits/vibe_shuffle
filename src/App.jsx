@@ -47,26 +47,34 @@ const SPOTIFY_REDIRECT_URI =
 // stored tokens can never lack newly required permissions (e.g. library read).
 const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v3";
 
-const RATING_SCORES = [1, 2, 3, 4, 5];
+const RATING_SCORES = [1, 2, 3, 4, 5, 6, 7];
 
 // Two separate 7-point Likert questions per track, asked in sequence.
 const LIKING_QUESTION = {
-  key: "rating_like_1_to_5",
+  key: "rating_like_1_to_7",
   title: "How much do you like this song?",
   lowLabel: "Don't like it",
   highLabel: "Love it",
 };
 const FIT_QUESTION = {
-  key: "rating_fit_1_to_5",
+  key: "rating_fit_1_to_7",
   title: "How well did it fit your current mood?",
   lowLabel: "Not at all",
   highLabel: "Perfect fit",
 };
 
-const BLOCK_COUNT = 2;
+const BLOCKS_PER_RUN = 2; // one Random + one Vibe block = a single A/B loop
+const RUN_COUNT = 2; // each participant goes through the loop twice
+const BLOCK_COUNT = BLOCKS_PER_RUN * RUN_COUNT; // 4 blocks → 20 trials total
 
-function randomBlockOrder() {
-  return Math.random() < 0.5 ? ["random", "vibe"] : ["vibe", "random"];
+// Each run is one Random+Vibe loop; the two runs use opposite orders so every
+// participant hears BOTH Random→Vibe and Vibe→Random (within-subject
+// counterbalancing). Which order comes first is randomized per session.
+function buildSessionPlan() {
+  const randomFirst = Math.random() < 0.5;
+  const run1 = randomFirst ? ["random", "vibe"] : ["vibe", "random"];
+  const run2 = randomFirst ? ["vibe", "random"] : ["random", "vibe"];
+  return [...run1, ...run2];
 }
 
 const GLASS_CARD =
@@ -113,6 +121,8 @@ const CSV_COLUMNS = [
   "protocol_id",
   "timestamp",
   "block_order",
+  "run_number",
+  "run_order",
   "block_number",
   "block_mode",
   "track_number",
@@ -129,8 +139,8 @@ const CSV_COLUMNS = [
   "detected_valence",
   "detected_arousal",
   "physiology_arousal",
-  "rating_like_1_to_5",
-  "rating_fit_1_to_5",
+  "rating_like_1_to_7",
+  "rating_fit_1_to_7",
 ];
 
 function ratingsToCsv(ratings) {
@@ -2085,12 +2095,12 @@ function SetupScreen({
 function LikertScale({ highLabel, lowLabel, onSelect, value }) {
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {RATING_SCORES.map((score) => {
           const active = value === score;
           return (
             <button
-              className={`flex aspect-square items-center justify-center rounded-xl border text-lg font-semibold transition duration-200 hover:-translate-y-0.5 active:scale-95 sm:text-xl ${
+              className={`flex aspect-square items-center justify-center rounded-xl border text-base font-semibold transition duration-200 hover:-translate-y-0.5 active:scale-95 sm:text-lg ${
                 active
                   ? "scale-105 border-transparent bg-gradient-to-br from-cyan-400 to-violet-500 text-[#05060f] shadow-[0_12px_34px_rgba(34,211,238,0.35)]"
                   : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-cyan-300/40 hover:bg-white/[0.08]"
@@ -2106,7 +2116,7 @@ function LikertScale({ highLabel, lowLabel, onSelect, value }) {
       </div>
       <div className="mt-2 flex justify-between text-xs text-slate-500">
         <span>1 · {lowLabel}</span>
-        <span>{highLabel} · 5</span>
+        <span>{highLabel} · 7</span>
       </div>
     </div>
   );
@@ -2254,12 +2264,12 @@ function ResultsChart({ ratings }) {
 
   const stats = {
     vibe: {
-      fit: mean(vibe.map((r) => r.rating_fit_1_to_5)),
-      like: mean(vibe.map((r) => r.rating_like_1_to_5)),
+      fit: mean(vibe.map((r) => r.rating_fit_1_to_7)),
+      like: mean(vibe.map((r) => r.rating_like_1_to_7)),
     },
     random: {
-      fit: mean(random.map((r) => r.rating_fit_1_to_5)),
-      like: mean(random.map((r) => r.rating_like_1_to_5)),
+      fit: mean(random.map((r) => r.rating_fit_1_to_7)),
+      like: mean(random.map((r) => r.rating_like_1_to_7)),
     },
   };
   const fitDelta = stats.vibe.fit - stats.random.fit;
@@ -2272,7 +2282,7 @@ function ResultsChart({ ratings }) {
     { label: "Vibe Shuffle", data: stats.vibe },
     { label: "Random", data: stats.random },
   ];
-  const barFor = (value) => `${(clamp(value, 0, 5) / 5) * 100}%`;
+  const barFor = (value) => `${(clamp(value, 0, 7) / 7) * 100}%`;
 
   return (
     <div className="animate-fade-in">
@@ -2320,7 +2330,7 @@ function ResultsChart({ ratings }) {
       </div>
       <p className="mt-3 text-xs text-slate-500">
         Mood-fit is the primary outcome; liking is the control (does Vibe just pick songs you like
-        more?). Scale 1–5.
+        more?). Scale 1–7.
       </p>
     </div>
   );
@@ -2401,6 +2411,45 @@ function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
   );
 }
 
+// Shown once, halfway through the session (after the first loop of 10 tracks).
+// The condition is never named here — it only marks the loop boundary and gives
+// the participant a short break before the second loop replays the same two
+// conditions in the opposite order.
+function IntermissionOverlay({ completedTrials, totalTrials, onContinue }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060f]/85 px-4 py-6 backdrop-blur-2xl">
+      <section
+        className={`${GLASS_CARD} w-full max-w-lg animate-scale-in bg-[#0a0d1d]/80 p-8 text-center sm:p-10`}
+      >
+        <SectionLabel icon={CheckCircle2}>First round complete</SectionLabel>
+        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.05]">
+          Halfway there
+        </h2>
+        <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-400">
+          You have rated the first {completedTrials} of {totalTrials} tracks. Take a short
+          breather — the second round plays the same two selection methods again, in the
+          opposite order.
+        </p>
+
+        <div className="mx-auto mt-8 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/10">
+          <div
+            className={`h-full rounded-full ${ACCENT_GRADIENT}`}
+            style={{ width: `${(completedTrials / totalTrials) * 100}%` }}
+          />
+        </div>
+        <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">
+          {completedTrials}/{totalTrials} rated
+        </p>
+
+        <PrimaryButton className="mt-8 w-full" onClick={onContinue} tone="accent">
+          Start round 2
+          <ArrowRight className="size-4" />
+        </PrimaryButton>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const spotifyAuth = useSpotifyAuth();
   const spotifyPlayer = useSpotifyPlayer(spotifyAuth.accessToken, spotifyAuth.ensureToken);
@@ -2417,7 +2466,7 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPlaybackActive, setIsPlaybackActive] = useState(false);
   const [protocolId, setProtocolId] = useState(() => createProtocolId());
-  const [blockOrder, setBlockOrder] = useState(() => randomBlockOrder());
+  const [blockSequence, setBlockSequence] = useState(() => buildSessionPlan());
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentSong, setCurrentSong] = useState(null);
@@ -2428,6 +2477,7 @@ export default function App() {
   const [protocolComplete, setProtocolComplete] = useState(false);
   const [trackProgress, setTrackProgress] = useState(0);
   const [ratingPromptOpen, setRatingPromptOpen] = useState(false);
+  const [intermissionOpen, setIntermissionOpen] = useState(false);
   const [playbackNotice, setPlaybackNotice] = useState("");
   const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
   const [calibrationRemaining, setCalibrationRemaining] = useState(0);
@@ -2437,7 +2487,13 @@ export default function App() {
   const physiologyWindowRef = useRef([]);
   const lastPhysiologySampleIdRef = useRef(0);
 
-  const mode = blockOrder[currentBlockIndex];
+  const mode = blockSequence[currentBlockIndex];
+  // Which loop the current block belongs to (1 or 2) and that loop's own order
+  // (e.g. "random>vibe") — recorded per trial so the A/B structure is explicit.
+  const runNumber = Math.floor(currentBlockIndex / BLOCKS_PER_RUN) + 1;
+  const runOrder = blockSequence
+    .slice((runNumber - 1) * BLOCKS_PER_RUN, runNumber * BLOCKS_PER_RUN)
+    .join(">");
   const liveFusion = useMemo(
     () => fuseEmotionSignals(face, physiology.currentSummary),
     [
@@ -2630,11 +2686,11 @@ export default function App() {
   function startSession() {
     if (!setupReady) return;
 
-    const order = randomBlockOrder();
+    const order = buildSessionPlan();
     const sessionSeed = randomSeed();
     const firstSong = rankSongs(songs, order[0], mood, null, sessionSeed, [])[0] ?? songs[0];
     resetSignalWindows();
-    setBlockOrder(order);
+    setBlockSequence(order);
     setCurrentSong(firstSong);
     setHistory([]);
     setCurrentBlockIndex(0);
@@ -2643,6 +2699,7 @@ export default function App() {
     setSessionStarted(true);
     setIsPlaying(false);
     setIsPlaybackActive(false);
+    setIntermissionOpen(false);
     setTrackProgress(0);
     setPlaybackNotice("Press play when you are ready.");
     // Short neutral-baseline calibration when the camera is active.
@@ -2675,7 +2732,7 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [calibrationRemaining, cameraReady]);
 
-  function moveToSong(song) {
+  function moveToSong(song, { autoplay = true } = {}) {
     resetSignalWindows();
     setHistory((items) => [...items.slice(-8), currentSong]);
     setCurrentSong(song);
@@ -2687,7 +2744,7 @@ export default function App() {
     setPlaybackNotice("");
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    if (sessionStarted) {
+    if (sessionStarted && autoplay) {
       startPlayback(song);
     } else {
       setIsPlaying(false);
@@ -2722,7 +2779,7 @@ export default function App() {
     }
 
     if (isLastTrackInBlock) {
-      const nextMode = blockOrder[currentBlockIndex + 1];
+      const nextMode = blockSequence[currentBlockIndex + 1];
       const transitionQueue = rankSongs(
         songs,
         nextMode,
@@ -2731,11 +2788,15 @@ export default function App() {
         queueSeed + 31,
         recentIds,
       );
+      // Boundary between loop 1 and loop 2 (block index 1 → 2). Pause for a short
+      // intermission instead of auto-starting the next run.
+      const isRunBoundary = (currentBlockIndex + 1) % BLOCKS_PER_RUN === 0;
 
       setCurrentBlockIndex((value) => value + 1);
       setCurrentTrackIndex(0);
       setQueueSeed((value) => value + 31);
-      moveToSong(transitionQueue[0] ?? nextSong);
+      moveToSong(transitionQueue[0] ?? nextSong, { autoplay: !isRunBoundary });
+      if (isRunBoundary) setIntermissionOpen(true);
       return;
     }
 
@@ -2756,7 +2817,9 @@ export default function App() {
       protocol_id: protocolId,
       trial_id: trialId,
       timestamp: new Date().toISOString(),
-      block_order: blockOrder.join(">"),
+      block_order: blockSequence.join(">"),
+      run_number: runNumber,
+      run_order: runOrder,
       block_number: currentBlockIndex + 1,
       block_mode: mode,
       track_number: currentTrackIndex + 1,
@@ -2773,8 +2836,8 @@ export default function App() {
       detected_valence: Number(fusionSummary.valence.toFixed(3)),
       detected_arousal: Number(fusionSummary.energy.toFixed(3)),
       physiology_arousal: physiologySummary.physiology_arousal,
-      rating_like_1_to_5: likeScore,
-      rating_fit_1_to_5: fitScore,
+      rating_like_1_to_7: likeScore,
+      rating_fit_1_to_7: fitScore,
     };
 
     const nextRatings = ratings.some((rating) => rating.trial_id === trialId)
@@ -2788,7 +2851,7 @@ export default function App() {
     playbackRequestRef.current += 1;
     resetSignalWindows();
     setProtocolId(createProtocolId());
-    setBlockOrder(randomBlockOrder());
+    setBlockSequence(buildSessionPlan());
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
     setCurrentSong(null);
@@ -2799,6 +2862,7 @@ export default function App() {
     setProtocolComplete(false);
     setTrackProgress(0);
     setRatingPromptOpen(false);
+    setIntermissionOpen(false);
     setSessionStarted(false);
     setIsPlaying(false);
     setIsPlaybackActive(false);
@@ -2813,8 +2877,21 @@ export default function App() {
     openRatingPrompt(true);
   }
 
+  // Leave the halftime break and start the first track of the second run.
+  function continueToSecondRun() {
+    setIntermissionOpen(false);
+    if (currentSong) startPlayback(currentSong);
+  }
+
   async function togglePlayback() {
-    if (!sessionStarted || protocolComplete || ratingPromptOpen || calibrationRemaining > 0 || !currentSong)
+    if (
+      !sessionStarted ||
+      protocolComplete ||
+      ratingPromptOpen ||
+      intermissionOpen ||
+      calibrationRemaining > 0 ||
+      !currentSong
+    )
       return;
 
     if (isPlaying) {
@@ -2869,6 +2946,9 @@ export default function App() {
         <header className="flex flex-wrap items-center justify-between gap-3">
           <BrandMark compact />
           <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
+              Round {runNumber}/{RUN_COUNT}
+            </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
               Trial {Math.min(completedTrials + 1, totalTrials)}/{totalTrials}
             </span>
@@ -3086,6 +3166,14 @@ export default function App() {
           onSkip={finishCalibration}
           secondsRemaining={calibrationRemaining}
           total={CALIBRATION_SECONDS}
+        />
+      ) : null}
+
+      {intermissionOpen ? (
+        <IntermissionOverlay
+          completedTrials={completedTrials}
+          onContinue={continueToSecondRun}
+          totalTrials={totalTrials}
         />
       ) : null}
     </main>

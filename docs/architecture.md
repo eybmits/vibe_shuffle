@@ -40,10 +40,14 @@ heart-rate sensor ──► HR/RR packets ──► physiologyModel ──► ar
 
 - **Setup screen**: connect Spotify (playback only), optional camera, optional
   heart-rate sensor; the 100-track pool is always ready.
-- **Two blocks** (`blockOrder`, randomized per session): `random` ranks tracks
-  deterministically at random, `vibe` ranks by distance to the fused state in
-  the valence/arousal plane (`rankSongs`). 5 tracks per block, 60 s each.
-- **Rating**: after each track, two sequential 5-point questions (liking, then
+- **Two runs of two blocks** (`blockSequence` from `buildSessionPlan`): each run
+  is one `random` + one `vibe` block, and the two runs use opposite orders, so
+  every participant goes through the loop twice — once Random→Vibe and once
+  Vibe→Random (20 tracks total; run order randomized per session). `random` ranks
+  tracks deterministically at random, `vibe` ranks by distance to the fused state
+  in the valence/arousal plane (`rankSongs`). 5 tracks per block, 60 s each.
+  A one-time `IntermissionOverlay` marks the boundary between the two runs.
+- **Rating**: after each track, two sequential 7-point questions (liking, then
   mood-fit) collected in `RatingModal` and saved by `submitRating`.
 - **Result**: `ResultsChart` shows mean mood-fit Vibe vs Random (liking as a
   control); `downloadCsv` exports the slim `CSV_COLUMNS`.
