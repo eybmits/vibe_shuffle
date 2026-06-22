@@ -14,6 +14,9 @@ build/
 paper/build/
 paper/chars.txt
 
+# LaTeX build artifacts for the flowchart diagrams (docs/flowcharts.pdf is committed)
+docs/build/
+
 # Large local-only data artifacts used to generate src/demoTracks.js (not needed at runtime)
 data/spotify_tracks_dataset.csv
 data/spotify_12m_tracks_features.csv

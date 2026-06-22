@@ -25,6 +25,7 @@
     "test:physiology": "node --test src/physiologyModel.test.js",
     "test": "npm run test:expression && npm run test:physiology",
     "paper": "cd paper && latexmk -pdf -shell-escape -interaction=nonstopmode -halt-on-error -output-directory=build main.tex && cp build/main.pdf ../public/paper.pdf",
+    "flowcharts": "cd docs && latexmk -pdf -interaction=nonstopmode -halt-on-error -output-directory=build flowcharts.tex && cp build/flowcharts.pdf flowcharts.pdf",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
