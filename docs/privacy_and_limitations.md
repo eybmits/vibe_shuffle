@@ -25,6 +25,16 @@ below neutral. Head/body motion adds to arousal on top of the ECG. HR/HRV is an
 experimental arousal signal, not a standalone emotion classifier, and the weights
 are pilot values, not validated clinical coefficients.
 
+The HR comparison is **median-to-median** — the live window and the baseline use
+the same statistic, so a steady (baseline-equal) state sits at the neutral
+midpoint instead of drifting up (a window-mean vs. baseline-median comparison
+would bias arousal upward, because `1/RR` is right-skewed). The RMSSD/SDNN
+baselines take a **robust median across short chunks** so a brief artifact during
+calibration corrupts only one chunk. Note that a single 60 s window is
+**inherently noisy** (≈ ±0.11 on the 0–1 arousal scale): individual readings
+scatter around the midpoint without signalling a real change, so arousal is
+meaningful as a **trend**, not as one instantaneous value.
+
 ## Signal-fusion rationale
 
 Face = valence, ECG = arousal (both directions), motion = additive arousal

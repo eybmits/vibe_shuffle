@@ -26,7 +26,12 @@ heart-rate sensor ──► HR/RR packets ──► physiologyModel ──► ar
 - **Arousal** comes from the heart-rate sensor when one is connected.
   `src/physiologyModel.js` parses HR + RR intervals, builds a 120 s personal
   baseline, and computes `physiology_arousal` from z-scored HR (up) and RMSSD
-  (down). SDNN is logged but excluded from the short-window estimate.
+  (down), centered on that baseline. HR uses a **median-to-median** comparison
+  (window and baseline share the statistic, so a resting state stays centered);
+  the RMSSD/SDNN baselines take a **robust median across short chunks**. SDNN is
+  logged but excluded from the short-window estimate. A single 60 s window is
+  intrinsically noisy (≈ ±0.11), so arousal reads as a trend, not a precise
+  instantaneous value.
 - **Fusion** (`fuseEmotionSignals`): face sets valence; a usable ECG sets the
   arousal base (both directions); head motion adds to arousal on top. Without a
   usable ECG, the face/motion channel carries arousal (upward only). With no

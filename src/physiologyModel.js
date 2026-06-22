@@ -133,10 +133,18 @@ export function computeHrvMetrics(rrIntervalsMs, heartRateSamples = []) {
   const meanRrMs = mean(rr);
   const meanHeartRateFromRr = meanRrMs ? 60000 / meanRrMs : null;
   const meanHeartRateFromSamples = mean(heartRateSamples);
+  // Same HR values the baseline summarizes (packet bpm, RR-derived as fallback).
+  // The baseline keys off the *median*, so the window must expose a median too:
+  // comparing a window mean against a baseline median biases arousal upward,
+  // because 1/RR is right-skewed (mean > median). hr_bpm_mean stays for display.
+  const hrValues = heartRateSamples.length
+    ? heartRateSamples
+    : rr.map((interval) => 60000 / interval);
 
   return {
     artifact_rate: roundNullable(filtered.artifactRate),
     hr_bpm_mean: roundNullable(meanHeartRateFromSamples ?? meanHeartRateFromRr),
+    hr_bpm_median: roundNullable(median(hrValues)),
     mean_rr_ms: roundNullable(meanRrMs),
     pnn20: roundNullable(pnn20(rr)),
     rejected_rr_count: filtered.rejectedCount,
@@ -175,6 +183,10 @@ export function createPhysiologyBaseline(measurements) {
   const rr = filtered.accepted;
   const metrics = computeHrvMetrics(rr, heartRates);
   const hrValues = heartRates.length ? heartRates : rr.map((interval) => 60000 / interval);
+  // RMSSD/SDNN baselines use the median across short chunks on purpose: a
+  // transient artifact during the 120 s calibration corrupts only one chunk, so
+  // the median stays robust. (The live window, a single 60 s read, uses one
+  // whole-window RMSSD — a slightly different estimator, accepted for robustness.)
   const rrChunks = chunk(rr, MIN_HRV_RR_COUNT);
   const rmssdValues = rrChunks.map((items) => rmssd(items)).filter(Number.isFinite);
   const sdnnValues = rrChunks.map((items) => standardDeviation(items)).filter(Number.isFinite);
@@ -212,8 +224,8 @@ export function summarizePhysiologyMeasurements(
         : "low";
 
   const zHr =
-    baseline && Number.isFinite(metrics.hr_bpm_mean)
-      ? (metrics.hr_bpm_mean - baseline.median_hr_bpm) / baseline.hr_mad
+    baseline && Number.isFinite(metrics.hr_bpm_median)
+      ? (metrics.hr_bpm_median - baseline.median_hr_bpm) / baseline.hr_mad
       : null;
   const zRmssd =
     baseline && Number.isFinite(metrics.rmssd_ms)

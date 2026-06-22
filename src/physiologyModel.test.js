@@ -243,6 +243,24 @@ test("no face and no usable ECG falls back to neutral centre", () => {
   assert.equal(fused.selectionSignalSource, "no_signal_center");
 });
 
+test("HR comparison uses the window median, so a steady state stays centered", () => {
+  // Skewed HR distribution where mean > median: 18 beats at 1000 ms (60 bpm) +
+  // 6 at 900 ms (~67 bpm). Jumps stay under the 30% ectopic gate.
+  const rr = [...Array(18).fill(1000), ...Array(6).fill(900)];
+  const measurements = rr.map((ms, index) => ({
+    heartRateBpm: Math.round(60000 / ms),
+    rrIntervalsMs: [ms],
+    timestamp: 1_700_000_000_000 + index * ms,
+  }));
+  const baseline = createPhysiologyBaseline(measurements);
+  const summary = summarizePhysiologyMeasurements(measurements, baseline);
+
+  // Window == baseline, so the median-vs-median HR comparison is exactly 0.
+  // (A mean-vs-median comparison would bias z_hr away from 0 on this data.)
+  assert.equal(summary.physiology_quality, "good");
+  approx(summary.z_hr, 0);
+});
+
 test("head motion adds to arousal on top of a usable ECG", () => {
   const physiology = { physiology_arousal: 0.55, physiology_quality: "good", rr_count: 40 };
   const still = fuseEmotionSignals(
