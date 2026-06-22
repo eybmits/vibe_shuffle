@@ -223,22 +223,25 @@ export function summarizePhysiologyMeasurements(
         ? "good"
         : "low";
 
-  const zHr =
-    baseline && Number.isFinite(metrics.hr_bpm_median)
-      ? (metrics.hr_bpm_median - baseline.median_hr_bpm) / baseline.hr_mad
-      : null;
-  const zRmssd =
-    baseline && Number.isFinite(metrics.rmssd_ms)
-      ? (baseline.median_rmssd_ms - metrics.rmssd_ms) / baseline.rmssd_mad
-      : null;
-  const zSdnn =
-    baseline && Number.isFinite(metrics.sdnn_ms)
-      ? (baseline.median_sdnn_ms - metrics.sdnn_ms) / baseline.sdnn_mad
-      : null;
-  const physiologyArousal =
-    quality === "good" && baseline
-      ? clamp(0.5 + ((zHr ?? 0) + (zRmssd ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT)
-      : null;
+  // Existing baseline logic...
+  const zHr = baseline && Number.isFinite(metrics.hr_bpm_mean) ? (metrics.hr_bpm_mean - baseline.median_hr_bpm) / baseline.hr_mad : null;
+  const zRmssd = baseline && Number.isFinite(metrics.rmssd_ms) ? (baseline.median_rmssd_ms - metrics.rmssd_ms) / baseline.rmssd_mad : null;
+  const zSdnn = baseline && Number.isFinite(metrics.sdnn_ms) ? (baseline.median_sdnn_ms - metrics.sdnn_ms) / baseline.sdnn_mad : null;
+
+  // Attempt to calculate the Coherence Score via FFT
+  const coherenceArousal = calculateCoherenceScore(rrIntervals);
+
+  // If FFT succeeds, use it! Otherwise, fallback to the old time-domain z-score method.
+  let physiologyArousal = null;
+  if (quality === "good") {
+    if (coherenceArousal !== null) {
+      physiologyArousal = coherenceArousal;
+    } else if (baseline) {
+      // Fallback
+      physiologyArousal = clamp(0.5 + ((zHr ?? 0) + (zRmssd ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT);
+    }
+  }
+  // -----------------------
 
   return {
     ...metrics,
@@ -251,6 +254,198 @@ export function summarizePhysiologyMeasurements(
     z_rmssd: roundNullable(zRmssd),
     z_sdnn: roundNullable(zSdnn),
   };
+}
+
+
+// Coherence Score calculation (Balaji et al., 2025)
+// Maps HRV frequency stability to arousal: high coherence = stable rhythm = higher arousal
+
+// Linearly interpolate RR intervals to a regular 2 Hz time series
+function interpolateRrToTimeSeries(rrIntervalsMs, samplingRateHz = 2) {
+  if (rrIntervalsMs.length < 2) return [];
+
+  // Build time stamps for each RR interval (cumulative)
+  const timePoints = [];
+  let cumulativeTime = 0;
+  timePoints.push(cumulativeTime);
+
+  for (let i = 0; i < rrIntervalsMs.length - 1; i++) {
+    cumulativeTime += rrIntervalsMs[i];
+    timePoints.push(cumulativeTime);
+  }
+
+  const totalDuration = cumulativeTime + rrIntervalsMs[rrIntervalsMs.length - 1];
+  const samplesNeeded = Math.floor((totalDuration / 1000) * samplingRateHz);
+
+  const timeSeries = [];
+  const dtMs = 1000 / samplingRateHz;
+
+  for (let i = 0; i < samplesNeeded; i++) {
+    const time = i * dtMs;
+
+    // Find surrounding RR intervals
+    let idx = 0;
+    while (idx < timePoints.length - 1 && timePoints[idx + 1] < time) {
+      idx++;
+    }
+
+    if (idx >= rrIntervalsMs.length - 1) {
+      timeSeries.push(rrIntervalsMs[rrIntervalsMs.length - 1]);
+    } else {
+      // Linear interpolation
+      const t0 = timePoints[idx];
+      const t1 = timePoints[idx + 1];
+      const v0 = rrIntervalsMs[idx];
+      const v1 = rrIntervalsMs[idx + 1];
+      const alpha = (time - t0) / (t1 - t0);
+      timeSeries.push(v0 + alpha * (v1 - v0));
+    }
+  }
+
+  return timeSeries;
+}
+
+// Apply Hanning window to reduce spectral leakage
+function hanningWindow(signal) {
+  const n = signal.length;
+  return signal.map((value, i) => {
+    const window = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1)));
+    return value * window;
+  });
+}
+
+// Remove linear trend via detrending
+function detrend(signal) {
+  const n = signal.length;
+  if (n < 2) return signal;
+
+  const meanVal = mean(signal);
+  const xMean = (n - 1) / 2;
+  const numerator = signal.reduce((sum, v, i) => sum + (i - xMean) * (v - meanVal), 0);
+  const denominator = (n * (n * n - 1)) / 12;
+  const slope = numerator / denominator;
+
+  return signal.map((v, i) => v - (slope * (i - xMean)));
+}
+
+// Simple radix-2 FFT (requires power-of-2 length)
+function fft(signal) {
+  const n = signal.length;
+
+  // Pad to nearest power of 2
+  let padded = signal.slice();
+  let power = 1;
+  while (Math.pow(2, power) < n) power++;
+  const paddedLength = Math.pow(2, power);
+  while (padded.length < paddedLength) padded.push(0);
+
+  return fftRadix2(padded.map(v => ({ real: v, imag: 0 })));
+}
+
+function fftRadix2(signal) {
+  const n = signal.length;
+  if (n === 1) return signal;
+  if (n % 2 !== 0) throw new Error("FFT length must be power of 2");
+
+  const even = signal.filter((_, i) => i % 2 === 0);
+  const odd = signal.filter((_, i) => i % 2 === 1);
+
+  const fftEven = fftRadix2(even);
+  const fftOdd = fftRadix2(odd);
+
+  const result = new Array(n);
+  for (let k = 0; k < n / 2; k++) {
+    const twiddle = {
+      real: Math.cos((-2 * Math.PI * k) / n),
+      imag: Math.sin((-2 * Math.PI * k) / n),
+    };
+    const product = {
+      real: fftOdd[k].real * twiddle.real - fftOdd[k].imag * twiddle.imag,
+      imag: fftOdd[k].real * twiddle.imag + fftOdd[k].imag * twiddle.real,
+    };
+
+    result[k] = {
+      real: fftEven[k].real + product.real,
+      imag: fftEven[k].imag + product.imag,
+    };
+    result[k + n / 2] = {
+      real: fftEven[k].real - product.real,
+      imag: fftEven[k].imag - product.imag,
+    };
+  }
+
+  return result;
+}
+
+// Calculate power spectral density from FFT
+function calculatePsd(signal, samplingRateHz = 2) {
+  const fftResult = fft(signal);
+  const n = fftResult.length;
+  const psd = [];
+
+  for (let i = 0; i < n / 2; i++) {
+    const magnitude = Math.sqrt(
+      fftResult[i].real ** 2 + fftResult[i].imag ** 2
+    );
+    const power = (magnitude ** 2) / (n * samplingRateHz);
+    psd.push(power);
+  }
+
+  return psd;
+}
+
+// Calculate Coherence Score (Balaji et al., 2025)
+// Maps to arousal: higher CS = smoother, more coherent rhythm = higher arousal/stability
+function calculateCoherenceScore(rrIntervalsMs, samplingRateHz = 2) {
+  if (rrIntervalsMs.length < 20) return null;
+
+  // Interpolate to regular time series
+  const timeSeries = interpolateRrToTimeSeries(rrIntervalsMs, samplingRateHz);
+  if (timeSeries.length < 20) return null;
+
+  // Preprocess
+  const detrended = detrend(timeSeries);
+  const windowed = hanningWindow(detrended);
+
+  // Calculate PSD
+  const psd = calculatePsd(windowed, samplingRateHz);
+  const freqResolution = samplingRateHz / (2 * psd.length);
+
+  // Find peak in coherence range (0.04-0.26 Hz)
+  const minFreqIdx = Math.floor(0.04 / freqResolution);
+  const maxFreqIdx = Math.ceil(0.26 / freqResolution);
+
+  let peakIdx = minFreqIdx;
+  let peakPower = psd[minFreqIdx] ?? 0;
+
+  for (let i = minFreqIdx; i <= Math.min(maxFreqIdx, psd.length - 1); i++) {
+    if (psd[i] > peakPower) {
+      peakPower = psd[i];
+      peakIdx = i;
+    }
+  }
+
+  // Coherence Ratio = (Peak / Below) × (Peak / Above)
+  const windowWidth = Math.max(1, Math.floor(0.03 / freqResolution)); // 0.03 Hz window
+  const belowStart = Math.max(0, peakIdx - windowWidth);
+  const belowEnd = peakIdx;
+  const aboveStart = peakIdx + 1;
+  const aboveEnd = Math.min(psd.length - 1, peakIdx + windowWidth);
+
+  const totalBelow = psd
+    .slice(belowStart, belowEnd)
+    .reduce((sum, p) => sum + p, 0) || peakPower * 0.1;
+  const totalAbove = psd
+    .slice(aboveStart, aboveEnd + 1)
+    .reduce((sum, p) => sum + p, 0) || peakPower * 0.1;
+
+  const coherenceRatio = (peakPower / totalBelow) * (peakPower / totalAbove);
+  const coherenceScore = Math.log(coherenceRatio + 1);
+
+  // Normalize CS to 0-1 arousal scale (empirically: CS ~0-8 maps to arousal 0-1)
+  const normArousal = clamp(coherenceScore / 8);
+
+  return roundNullable(normArousal);
 }
 
 function quadrantFromAxes(valence, energy) {

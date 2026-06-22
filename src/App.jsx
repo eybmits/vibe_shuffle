@@ -232,17 +232,33 @@ function rankSongs(songs, mode, mood, currentSongId, seed, recentIds) {
 
   return pool
     .map((song) => {
-      const recentPenalty = recentIds.includes(song.id) ? 10 : 0;
-      const randomScore = deterministicScore(song.id, seed);
+      // 1. Calculate Euclidean Distance (0.0 to ~1.41)
       const distance = Math.hypot(song.valence - mood.valence, song.energy - mood.energy);
+
+      // 2. Soft Decay Recency Penalty
+      // Find how long ago it was played. 
+      // If it was the very last song played (index = length - 1), recency = 1.
+      // If it was 8 songs ago (index = 0), recency = 8.
+      const recentIdx = recentIds.lastIndexOf(song.id);
+      const recency = recentIdx !== -1 ? (recentIds.length - recentIdx) : 0;
+      
+      // The penalty drops off exponentially. (e.g., 0.6 / 1 = 0.6 penalty. 0.6 / 8 = 0.075 penalty)
+      const recentPenalty = recency > 0 ? (0.6 / recency) : 0;
+
+      // 3. Jitter (Tiny randomness so ties/close songs shuffle slightly)
+      // deterministicScore returns 0.0 to 1.0. We multiply by 0.15 so it's a minor factor.
+      const randomJitter = deterministicScore(song.id, seed) * 0.15;
+
+      // Final Score: Distance is the main driver, heavily penalized if played recently, slightly jittered.
+      const finalScore = distance + recentPenalty + randomJitter;
 
       return {
         ...song,
-        score: randomScore + recentPenalty,
+        score: finalScore,
         fit: Math.round(clamp(1 - distance, 0, 1) * 100),
       };
     })
-    .sort((a, b) => a.score - b.score);
+    .sort((a, b) => a.score - b.score); // Lowest score wins
 }
 
 function expressionStateToMood(expressionState) {
