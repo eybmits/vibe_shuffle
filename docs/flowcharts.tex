@@ -56,9 +56,9 @@
     \shade[left color=#1!45, right color=#2!75, rounded corners=6pt]
       (0,0) rectangle (11,0.8);
     \draw[rounded corners=6pt, draw=boxbd] (0,0) rectangle (11,0.8);
-    \node[font=\small\bfseries, text=ink] at (1.7,0.4) {#3};
-    \node[font=\small\bfseries, text=ink] at (9.2,0.4) {#4};
-    \node[font=\large, text=soft] at (5.5,0.4) {$\longleftrightarrow$};
+    \node[font=\small\bfseries, text=ink, anchor=base] at (1.7,0.33) {#3};
+    \node[font=\small\bfseries, text=ink, anchor=base] at (9.2,0.33) {#4};
+    \node[font=\large, text=soft, anchor=base] at (5.5,0.33) {$\longleftrightarrow$};
   \end{tikzpicture}}
 
 \begin{document}
@@ -80,7 +80,7 @@
   \node[box, below=of b2] (b3)
     {\head{While a song plays, we compare to that resting rhythm}
      Is your heart beating faster than usual? Are the beats more rushed and
-     regular? This sets a \emph{base} energy level.};
+     regular? This \emph{raises or lowers} your current energy level.};
   \node[box, fill=face!12, draw=face, line width=1pt, below=of b3] (bmove)
     {\head{Your movement is always added on top}
      The more you move and bob along to the music, the higher the energy~--- and
@@ -88,8 +88,8 @@
   \node[below=8mm of bmove] (bar) {\scalebar{relaxed}{hrv}{Low energy}{High energy}};
   \node[result, below=8mm of bar] (b5)
     {\head{Result: an ``energy'' level}
-     The heartbeat sets the base, and moving along always pushes the energy
-     higher.};
+     Your heartbeat moves the energy up or down, and moving along always pushes
+     it further up.};
 
   \node[num, left=3mm of b1] {1};
   \node[num, left=3mm of b2] {2};
