@@ -70,9 +70,9 @@ const BLOCK_COUNT = BLOCKS_PER_RUN * RUN_COUNT; // 2 blocks → 10 trials total
 // Between-subjects design: each participant gets ONE fixed order. The two masked
 // protocols map to the two orders. This mapping is the experimenter's key and is
 // NEVER shown to the participant (see docs/experiment_protocol.md):
-//   Protokoll 1 = Random→Vibe (A→B)   |   Protokoll 2 = Vibe→Random (B→A)
+//   Protocol 1 = Random→Vibe (A→B)   |   Protocol 2 = Vibe→Random (B→A)
 const PROTOCOLS = { 1: ["random", "vibe"], 2: ["vibe", "random"] };
-const PROTOCOL_LABELS = { 1: "Protokoll 1", 2: "Protokoll 2" };
+const PROTOCOL_LABELS = { 1: "Protocol 1", 2: "Protocol 2" };
 // Suggested protocol from the participant number: first 10 → 1, the rest → 2.
 const defaultProtocolKey = (number) =>
   Number(number) > 0 && Number(number) <= 10 ? 1 : 2;
