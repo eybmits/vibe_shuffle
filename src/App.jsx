@@ -63,18 +63,22 @@ const FIT_QUESTION = {
   highLabel: "Perfect fit",
 };
 
-const BLOCKS_PER_RUN = 2; // one Random + one Vibe block = a single A/B loop
-const RUN_COUNT = 2; // each participant goes through the loop twice
-const BLOCK_COUNT = BLOCKS_PER_RUN * RUN_COUNT; // 4 blocks → 20 trials total
+const BLOCKS_PER_RUN = 2; // one Random block + one Vibe block = the A/B loop
+const RUN_COUNT = 1; // each participant runs the loop once, in ONE fixed order
+const BLOCK_COUNT = BLOCKS_PER_RUN * RUN_COUNT; // 2 blocks → 10 trials total
 
-// Each run is one Random+Vibe loop; the two runs use opposite orders so every
-// participant hears BOTH Random→Vibe and Vibe→Random (within-subject
-// counterbalancing). Which order comes first is randomized per session.
-function buildSessionPlan() {
-  const randomFirst = Math.random() < 0.5;
-  const run1 = randomFirst ? ["random", "vibe"] : ["vibe", "random"];
-  const run2 = randomFirst ? ["vibe", "random"] : ["random", "vibe"];
-  return [...run1, ...run2];
+// Between-subjects design: each participant gets ONE fixed order. The two masked
+// protocols map to the two orders. This mapping is the experimenter's key and is
+// NEVER shown to the participant (see docs/experiment_protocol.md):
+//   Protokoll 1 = Random→Vibe (A→B)   |   Protokoll 2 = Vibe→Random (B→A)
+const PROTOCOLS = { 1: ["random", "vibe"], 2: ["vibe", "random"] };
+const PROTOCOL_LABELS = { 1: "Protokoll 1", 2: "Protokoll 2" };
+// Suggested protocol from the participant number: first 10 → 1, the rest → 2.
+const defaultProtocolKey = (number) =>
+  Number(number) > 0 && Number(number) <= 10 ? 1 : 2;
+
+function buildSessionPlan(protocolKey) {
+  return PROTOCOLS[protocolKey] ?? PROTOCOLS[1];
 }
 
 const GLASS_CARD =
@@ -119,6 +123,8 @@ function csvEscape(value) {
 // Only the columns needed to validate Vibe vs Random mood-fit.
 const CSV_COLUMNS = [
   "protocol_id",
+  "participant_number",
+  "protocol_label",
   "timestamp",
   "block_order",
   "run_number",
@@ -154,11 +160,13 @@ function ratingsToCsv(ratings) {
 function downloadCsv(ratings, protocolId) {
   if (!ratings.length) return;
 
+  const participant = ratings[0]?.participant_number;
+  const prefix = participant ? `P${participant}_` : "";
   const blob = new Blob([ratingsToCsv(ratings)], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${protocolId}_vibe_shuffle_validation.csv`;
+  link.download = `${prefix}${protocolId}_vibe_shuffle_validation.csv`;
   document.body.append(link);
   link.click();
   link.remove();
@@ -1368,6 +1376,35 @@ function usePhysiologySensor() {
     }, 600);
   }, [applyMeasurement, stopMock]);
 
+  // Testing shortcut: finish the baseline immediately instead of waiting the
+  // full 120 s. Uses whatever real data has accumulated if it is already usable,
+  // otherwise falls back to a mock baseline so a skip always yields a baseline.
+  const skipBaseline = useCallback(() => {
+    setState((current) => {
+      if (current.baseline) return current;
+      const realMeasurements = baselineMeasurementsRef.current;
+      const realUsable =
+        summarizePhysiologyMeasurements(realMeasurements).physiology_quality === "good";
+      const measurements = realUsable ? realMeasurements : createMockBaselineMeasurements();
+      const baseline = createPhysiologyBaseline(measurements);
+      if (!realUsable) {
+        baselineMeasurementsRef.current = measurements;
+        if (!measurementsRef.current.length) {
+          measurementsRef.current = measurements.slice(-20);
+        }
+      }
+      baselineStartRef.current = Date.now() - PHYSIOLOGY_BASELINE_SECONDS * 1000;
+      return {
+        ...current,
+        baseline,
+        baselineIssue: "",
+        baselineProgress: 1,
+        currentSummary: summarizePhysiologyMeasurements(measurementsRef.current, baseline),
+        status: "ready",
+      };
+    });
+  }, []);
+
   const connectBle = useCallback(async () => {
     if (!navigator.bluetooth) {
       setState((current) => ({
@@ -1439,6 +1476,7 @@ function usePhysiologySensor() {
     ...state,
     connectBle,
     disconnect,
+    skipBaseline,
     startMock,
   };
 }
@@ -2036,10 +2074,14 @@ function SetupScreen({
   onConnectSpotify,
   onDisconnectHeartSensor,
   onDisconnectSpotify,
+  onParticipantNumberChange,
+  onProtocolKeyChange,
   onStart,
   onStartCamera,
   onStartMockHeartSensor,
+  participantNumber,
   physiology,
+  protocolKey,
   setupReady,
   songCount,
   spotifyAuth,
@@ -2187,7 +2229,18 @@ function SetupScreen({
             title="Heart Rate Variability"
           >
             {physiology.connected ? (
-              <p className="text-sm leading-6 text-slate-300">{physiologyStatusText}</p>
+              <>
+                <p className="text-sm leading-6 text-slate-300">{physiologyStatusText}</p>
+                {physiology.status === "baselining" ? (
+                  <button
+                    className="mt-2 text-xs font-semibold text-slate-500 underline-offset-4 transition hover:text-slate-300 hover:underline"
+                    onClick={physiology.skipBaseline}
+                    type="button"
+                  >
+                    Skip calibration
+                  </button>
+                ) : null}
+              </>
             ) : (
               <>
                 <SignalMetric
@@ -2274,7 +2327,47 @@ function SetupScreen({
                 Switch account
               </button>
             )}
-            <PrimaryButton className="w-full" disabled={!setupReady} onClick={onStart} tone="accent">
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Participant #
+                </span>
+                <input
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white outline-none transition focus:border-cyan-400/60"
+                  inputMode="numeric"
+                  onChange={(event) => onParticipantNumberChange(event.target.value)}
+                  placeholder="e.g. 1"
+                  value={participantNumber}
+                />
+              </label>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  Protocol
+                </span>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {[1, 2].map((key) => (
+                    <button
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                        protocolKey === key
+                          ? "border-cyan-400/60 bg-cyan-400/15 text-white"
+                          : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
+                      }`}
+                      key={key}
+                      onClick={() => onProtocolKeyChange(key)}
+                      type="button"
+                    >
+                      {PROTOCOL_LABELS[key]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <PrimaryButton
+              className="w-full"
+              disabled={!setupReady || !participantNumber}
+              onClick={onStart}
+              tone="accent"
+            >
               Begin session
               <ArrowRight className="size-4" />
             </PrimaryButton>
@@ -2647,7 +2740,9 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPlaybackActive, setIsPlaybackActive] = useState(false);
   const [protocolId, setProtocolId] = useState(() => createProtocolId());
-  const [blockSequence, setBlockSequence] = useState(() => buildSessionPlan());
+  const [participantNumber, setParticipantNumber] = useState("");
+  const [protocolKey, setProtocolKey] = useState(1);
+  const [blockSequence, setBlockSequence] = useState(() => buildSessionPlan(1));
   const [currentBlockIndex, setCurrentBlockIndex] = useState(0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentSong, setCurrentSong] = useState(null);
@@ -2864,10 +2959,18 @@ export default function App() {
     }
   }, [pauseSpotify, ratingPromptOpen]);
 
-  function startSession() {
-    if (!setupReady) return;
+  // Entering a participant number pre-selects the suggested protocol; the
+  // experimenter can still override it via the masked toggle afterwards.
+  function handleParticipantNumberChange(value) {
+    const next = value.replace(/[^0-9]/g, "");
+    setParticipantNumber(next);
+    if (next) setProtocolKey(defaultProtocolKey(next));
+  }
 
-    const order = buildSessionPlan();
+  function startSession() {
+    if (!setupReady || !participantNumber) return;
+
+    const order = buildSessionPlan(protocolKey);
     const sessionSeed = randomSeed();
     const firstSong = rankSongs(songs, order[0], mood, null, sessionSeed, [])[0] ?? songs[0];
     resetSignalWindows();
@@ -2996,6 +3099,8 @@ export default function App() {
     const fusionSummary = fuseEmotionSignals(expressionSummary, physiologySummary);
     const nextRating = {
       protocol_id: protocolId,
+      participant_number: participantNumber,
+      protocol_label: PROTOCOL_LABELS[protocolKey],
       trial_id: trialId,
       timestamp: new Date().toISOString(),
       block_order: blockSequence.join(">"),
@@ -3032,7 +3137,7 @@ export default function App() {
     playbackRequestRef.current += 1;
     resetSignalWindows();
     setProtocolId(createProtocolId());
-    setBlockSequence(buildSessionPlan());
+    setBlockSequence(buildSessionPlan(protocolKey));
     setCurrentBlockIndex(0);
     setCurrentTrackIndex(0);
     setCurrentSong(null);
@@ -3101,10 +3206,14 @@ export default function App() {
           onConnectSpotify={spotifyAuth.connect}
           onDisconnectHeartSensor={physiology.disconnect}
           onDisconnectSpotify={spotifyAuth.disconnect}
+          onParticipantNumberChange={handleParticipantNumberChange}
+          onProtocolKeyChange={setProtocolKey}
           onStart={startSession}
           onStartCamera={face.start}
           onStartMockHeartSensor={physiology.startMock}
+          participantNumber={participantNumber}
           physiology={physiology}
+          protocolKey={protocolKey}
           setupReady={setupReady}
           songCount={songs.length}
           spotifyAuth={spotifyAuth}
@@ -3128,7 +3237,7 @@ export default function App() {
           <BrandMark compact />
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
-              Round {runNumber}/{RUN_COUNT}
+              #{participantNumber} · {PROTOCOL_LABELS[protocolKey]}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
               Trial {Math.min(completedTrials + 1, totalTrials)}/{totalTrials}

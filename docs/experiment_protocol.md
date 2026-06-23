@@ -8,20 +8,24 @@ The app implements a blinded, counterbalanced validation protocol comparing
 - **Pool**: a fixed set of 100 curated Spotify tracks (`src/demoTracks.js`), 25
   per valence/arousal quadrant. Every participant hears from the same pool.
 - **Blocks**: each block is `random` or `vibe` and holds 5 tracks.
-- **Runs (within-subject counterbalancing)**: every participant goes through the
-  loop **twice**. The two runs use **opposite** block orders, so each participant
-  experiences **both** Random→Vibe and Vibe→Random — **4 blocks, 20 tracks
-  total**. Which order comes first is **randomized per session**
-  (`buildSessionPlan` in `src/App.jsx`). A one-time intermission screen separates
-  the two runs.
-- **No account needed**: one complete 20-track session is one participant,
-  identified by the auto-generated `protocol_id` (`VS-<timestamp>`). The A/B
-  structure is recorded per trial via `run_number` and `run_order` rather than a
-  login.
+- **Protocol (between-subjects)**: each participant runs the loop **once**, in
+  **one fixed order** — **2 blocks, 10 tracks total**. The order is one of two
+  masked protocols (`buildSessionPlan(protocolKey)` in `src/App.jsx`):
+  - **Protokoll 1 = Random→Vibe** (A→B)
+  - **Protokoll 2 = Vibe→Random** (B→A)
+
+  Counterbalancing is **across participants**: roughly half get each protocol.
+- **Participant number**: entered at setup. It pre-selects the suggested protocol
+  (number ≤ 10 → Protokoll 1, > 10 → Protokoll 2), which the experimenter can
+  override via the masked toggle. The session is also tagged with `protocol_id`
+  (`VS-<timestamp>`).
 - **Listening window**: each track plays for **60 seconds**, then the rating
   prompt opens. The participant can also rate early ("Rate now").
-- **Blinding**: the condition (random vs vibe) is never shown to the
-  participant during the session — including on the intermission screen.
+- **Blinding**: the condition (random vs vibe) is never shown to the participant.
+  The order is presented only as a **masked label** — "Protokoll 1" / "Protokoll
+  2" — so the participant cannot tell which condition comes first. The mapping
+  above is the **experimenter's key** and lives only in this doc and the CSV, not
+  in the participant UI.
 
 ## Selection
 
@@ -48,21 +52,28 @@ analysis separate "did not fit my mood" from "I just don't like this song".
 ## Outcome & export
 
 At the end the app shows mean **mood-fit Vibe vs Random** (with liking as a
-control bar) and exports a CSV. Columns (`CSV_COLUMNS` in `src/App.jsx`):
+control bar) and exports a CSV (filename prefixed with `P<number>_`). Columns
+(`CSV_COLUMNS` in `src/App.jsx`):
 
 ```
-protocol_id, timestamp, block_order, run_number, run_order, block_number,
-block_mode, track_number, song_id, spotify_id, song_title, artist,
-song_quadrant, song_valence, song_arousal, face_present, ecg_connected,
-physiology_quality, detected_valence, detected_arousal, physiology_arousal,
-rating_like_1_to_7, rating_fit_1_to_7
+protocol_id, participant_number, protocol_label, timestamp, block_order,
+run_number, run_order, block_number, block_mode, track_number, song_id,
+spotify_id, song_title, artist, song_quadrant, song_valence, song_arousal,
+face_present, ecg_connected, physiology_quality, detected_valence,
+detected_arousal, physiology_arousal, rating_like_1_to_7, rating_fit_1_to_7
 ```
 
-`block_order` is the full session sequence of all four blocks (e.g.
-`random>vibe>vibe>random`). `run_number` (1 or 2) and `run_order` (that run's own
-order, e.g. `random>vibe`) make the within-subject counterbalancing explicit, and
-`block_number` is the global block position (1–4).
+`participant_number` and `protocol_label` ("Protokoll 1/2") identify the
+participant and the masked condition order; `block_order` is the actual sequence
+(e.g. `random>vibe`), from which the A/B order is recoverable for analysis.
+`block_number` is the block position (1–2). (`run_number` is always 1 and
+`run_order` equals `block_order` now that each participant runs the loop once —
+kept for backward compatibility.)
 
-Primary analysis: compare `rating_fit_1_to_7` between `block_mode = vibe` and
-`block_mode = random`, controlling for `rating_like_1_to_7` and accounting for
-order via `run_number` / `run_order`.
+Primary analysis (between-subjects counterbalanced): compare `rating_fit_1_to_7`
+between `block_mode = vibe` and `block_mode = random`, controlling for
+`rating_like_1_to_7` and for block position (`block_number`), with the order
+balanced across the two protocols. A mixed model
+`fit ~ block_mode + block_number + (1 | participant_number)` uses each
+participant's own Random-vs-Vibe contrast while the order confound is balanced
+across protocols.
