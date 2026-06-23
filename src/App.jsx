@@ -204,17 +204,18 @@ function createSmoothPath(points) {
   return d.join(" ");
 }
 
-// A stable, nicely-rounded BPM axis. We snap the visible window to multiples of a
-// "nice" step (10/20/30 bpm) and keep the baseline in view, so gridlines stay put
-// and the trace doesn't visually rescale on every packet.
+// A stable, nicely-rounded BPM axis that zooms to the live signal. We snap the
+// window to multiples of a "nice" step — finer (5 bpm) when the range is tight so
+// beat-to-beat oscillations fill the plot, coarser when it is wide — and hug the
+// data with only a small margin so the trace doesn't sit in a thin band.
 function buildBpmScale(values, baseline) {
   const all = Number.isFinite(baseline) ? [...values, baseline] : values;
   const lo = Math.min(...all);
   const hi = Math.max(...all);
   const dataSpan = hi - lo;
-  const step = dataSpan <= 26 ? 10 : dataSpan <= 70 ? 20 : 30;
-  let min = Math.floor((lo - step * 0.4) / step) * step;
-  let max = Math.ceil((hi + step * 0.4) / step) * step;
+  const step = dataSpan <= 16 ? 5 : dataSpan <= 45 ? 10 : dataSpan <= 90 ? 20 : 30;
+  let min = Math.floor((lo - step * 0.25) / step) * step;
+  let max = Math.ceil((hi + step * 0.25) / step) * step;
   if ((max - min) / step < 2) max = min + step * 2;
   min = Math.max(0, min);
   const ticks = [];
@@ -234,14 +235,23 @@ const HR_PLOT = {
   bottom: 144,
 };
 
+const PLACEHOLDER_HR_SAMPLES = [66, 67, 66, 68, 67, 69, 71, 72, 70, 71, 73, 72].map(
+  (heartRateBpm) => ({ heartRateBpm }),
+);
+
+// Physiologically plausible resting/active HR. Sensor warm-up zeros and dropout
+// spikes fall outside this and are dropped so they can't drag the y-axis to 0.
+const HR_MIN_PLAUSIBLE = 30;
+const HR_MAX_PLAUSIBLE = 240;
+
 function buildHeartRateCurve(samples, baseline) {
-  const heartRates = samples
-    .map((sample) => Number(sample.heartRateBpm))
-    .filter((value) => Number.isFinite(value));
-  const placeholder = !heartRates.length;
-  const values = placeholder
-    ? [66, 67, 66, 68, 67, 69, 71, 72, 70, 71, 73, 72]
-    : heartRates;
+  const valid = samples.filter((sample) => {
+    const value = Number(sample.heartRateBpm);
+    return Number.isFinite(value) && value >= HR_MIN_PLAUSIBLE && value <= HR_MAX_PLAUSIBLE;
+  });
+  const placeholder = valid.length < 2;
+  const source = placeholder ? PLACEHOLDER_HR_SAMPLES : valid;
+  const values = source.map((sample) => Number(sample.heartRateBpm));
 
   const { left, right, top, bottom } = HR_PLOT;
   const plotW = right - left;
@@ -258,8 +268,8 @@ function buildHeartRateCurve(samples, baseline) {
   }));
 
   const path = createSmoothPath(points);
-  const last = samples.at(-1);
-  const first = samples[0];
+  const last = source.at(-1);
+  const first = source[0];
   const windowSeconds =
     Number.isFinite(first?.timestamp) && Number.isFinite(last?.timestamp) && last.timestamp > first.timestamp
       ? (last.timestamp - first.timestamp) / 1000
@@ -1664,7 +1674,7 @@ function HeartRateCurve({ physiology, summary }) {
   const samples = physiology.heartRateHistory ?? [];
   const baselineBpm = Number(summary?.baseline_hr_bpm);
   const curve = buildHeartRateCurve(samples, baselineBpm);
-  const hasLiveSamples = samples.length > 0;
+  const hasLiveSamples = !curve.placeholder;
   const { left, right, top, bottom, width: W, height: H } = HR_PLOT;
   const lastPoint = curve.lastPoint;
   const pct = (value, total) => `${(value / total) * 100}%`;
