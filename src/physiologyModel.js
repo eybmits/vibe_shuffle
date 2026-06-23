@@ -1,7 +1,7 @@
 // 120 s neutral baseline: long enough for a stable RMSSD reference and to ride
 // out the settling period, while staying practical for participants.
 export const PHYSIOLOGY_BASELINE_SECONDS = 120;
-export const PHYSIOLOGY_WINDOW_MS = 60_000;
+export const PHYSIOLOGY_WINDOW_MS = 128_000;
 export const MIN_HRV_RR_COUNT = 20;
 export const VALID_RR_MIN_MS = 300;
 export const VALID_RR_MAX_MS = 2000;
