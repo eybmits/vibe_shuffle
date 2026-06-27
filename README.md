@@ -1,6 +1,6 @@
-# Vibe Shuffle
+# VibeTracker
 
-Vibe Shuffle is a single-page React app for a blinded music-recommendation
+VibeTracker is a single-page React app for a blinded music-recommendation
 validation study. It compares a passive **Random Shuffle** block against a
 mood-adaptive **Vibe Shuffle** block, while estimating the participant's
 affective state locally in the browser (facial expression + optional heart-rate
