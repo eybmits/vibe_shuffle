@@ -11,7 +11,7 @@ Create an app at https://developer.spotify.com/dashboard.
 
 - **APIs/SDKs**: enable **Web API** and **Web Playback SDK**.
 - **Redirect URIs**: add the deployed site URL (e.g.
-  `https://eybmits.github.io/vibe_shuffle_site/`) and, for local dev,
+  `https://eybmits.github.io/vibe-tracker-pages/`) and, for local dev,
   `http://localhost:5173/`. They must match exactly.
 - The Client ID is public and is baked into the build; the **Client Secret is
   not needed** for this app — never commit it.

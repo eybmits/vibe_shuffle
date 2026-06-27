@@ -2074,7 +2074,7 @@ function TopNav() {
           </a>
           <a
             className={`hidden sm:inline ${linkClass}`}
-            href="https://github.com/eybmits/vibe-shuffle/blob/main/docs/privacy_and_limitations.md"
+            href="https://github.com/eybmits/vibe-tracker/blob/main/docs/privacy_and_limitations.md"
             rel="noreferrer"
             target="_blank"
           >
@@ -2082,7 +2082,7 @@ function TopNav() {
           </a>
           <a
             className={`hidden sm:inline ${linkClass}`}
-            href="https://github.com/eybmits/vibe-shuffle"
+            href="https://github.com/eybmits/vibe-tracker"
             rel="noreferrer"
             target="_blank"
           >

@@ -2,12 +2,12 @@
 
 The project uses two repositories:
 
-- Source repository: `eybmits/vibe_shuffle`
-- Static GitHub Pages repository: `eybmits/vibe_shuffle_site`
+- Source repository: `eybmits/vibe-tracker`
+- Static GitHub Pages repository: `eybmits/vibe-tracker-pages`
 
 Live site:
 
-https://eybmits.github.io/vibe_shuffle_site/
+https://eybmits.github.io/vibe-tracker-pages/
 
 ## Build
 
@@ -25,11 +25,11 @@ From a clean source checkout:
 
 ```bash
 npm run build
-rm -rf /tmp/vibe-shuffle-site-deploy
-git clone https://github.com/eybmits/vibe-shuffle-site.git /tmp/vibe-shuffle-site-deploy
-find /tmp/vibe-shuffle-site-deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/. /tmp/vibe-shuffle-site-deploy/
-cd /tmp/vibe-shuffle-site-deploy
+rm -rf /tmp/vibe-tracker-pages-deploy
+git clone https://github.com/eybmits/vibe-tracker-pages.git /tmp/vibe-tracker-pages-deploy
+find /tmp/vibe-tracker-pages-deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp -R dist/. /tmp/vibe-tracker-pages-deploy/
+cd /tmp/vibe-tracker-pages-deploy
 touch .nojekyll
 git add -A
 git commit -m "Deploy Vibe Shuffle update"
@@ -39,7 +39,7 @@ git push origin main
 ## Verification
 
 ```bash
-curl -I -L https://eybmits.github.io/vibe_shuffle_site/
+curl -I -L https://eybmits.github.io/vibe-tracker-pages/
 ```
 
 Expected result: `HTTP/2 200`.

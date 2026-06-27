@@ -6,7 +6,7 @@ mood-adaptive **Vibe Shuffle** block, while estimating the participant's
 affective state locally in the browser (facial expression + optional heart-rate
 sensor) and logging two ratings per track.
 
-Live demo: https://eybmits.github.io/vibe_shuffle_site/
+Live demo: https://eybmits.github.io/vibe-tracker-pages/
 
 ## What it does
 
