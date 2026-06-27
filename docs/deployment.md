@@ -25,11 +25,11 @@ From a clean source checkout:
 
 ```bash
 npm run build
-rm -rf /tmp/vibe_shuffle_site_deploy
-git clone https://github.com/eybmits/vibe_shuffle_site.git /tmp/vibe_shuffle_site_deploy
-find /tmp/vibe_shuffle_site_deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/. /tmp/vibe_shuffle_site_deploy/
-cd /tmp/vibe_shuffle_site_deploy
+rm -rf /tmp/vibe-shuffle-site-deploy
+git clone https://github.com/eybmits/vibe-shuffle-site.git /tmp/vibe-shuffle-site-deploy
+find /tmp/vibe-shuffle-site-deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp -R dist/. /tmp/vibe-shuffle-site-deploy/
+cd /tmp/vibe-shuffle-site-deploy
 touch .nojekyll
 git add -A
 git commit -m "Deploy Vibe Shuffle update"

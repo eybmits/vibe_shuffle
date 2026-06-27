@@ -6,10 +6,10 @@
   "homepage": "https://eybmits.github.io/vibe_shuffle_site/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eybmits/vibe_shuffle.git"
+    "url": "https://github.com/eybmits/vibe-shuffle.git"
   },
   "bugs": {
-    "url": "https://github.com/eybmits/vibe_shuffle/issues"
+    "url": "https://github.com/eybmits/vibe-shuffle/issues"
   },
   "keywords": [
     "music-recommendation",
