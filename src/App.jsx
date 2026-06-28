@@ -145,6 +145,7 @@ const CSV_COLUMNS = [
   "detected_valence",
   "detected_arousal",
   "physiology_arousal",
+  "physiology_coherence",
   "rating_like_1_to_7",
   "rating_fit_1_to_7",
 ];
@@ -2724,10 +2725,8 @@ function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
   );
 }
 
-// Shown once, halfway through the session (after the first loop of 10 tracks).
-// The condition is never named here — it only marks the loop boundary and gives
-// the participant a short break before the second loop replays the same two
-// conditions in the opposite order.
+// Only shown when RUN_COUNT is raised above 1. The condition is never named
+// here — it only marks a loop boundary and gives the participant a short break.
 function IntermissionOverlay({ completedTrials, totalTrials, onContinue }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05060f]/85 px-4 py-6 backdrop-blur-2xl">
@@ -3099,8 +3098,7 @@ export default function App() {
         queueSeed + 31,
         recentIds,
       );
-      // Boundary between loop 1 and loop 2 (block index 1 → 2). Pause for a short
-      // intermission instead of auto-starting the next run.
+      // Pause at run boundaries if RUN_COUNT is raised above 1.
       const isRunBoundary = (currentBlockIndex + 1) % BLOCKS_PER_RUN === 0;
 
       setCurrentBlockIndex((value) => value + 1);
@@ -3149,6 +3147,7 @@ export default function App() {
       detected_valence: Number(fusionSummary.valence.toFixed(3)),
       detected_arousal: Number(fusionSummary.energy.toFixed(3)),
       physiology_arousal: physiologySummary.physiology_arousal,
+      physiology_coherence: physiologySummary.physiology_coherence,
       rating_like_1_to_7: likeScore,
       rating_fit_1_to_7: fitScore,
     };
@@ -3190,8 +3189,7 @@ export default function App() {
     openRatingPrompt(true);
   }
 
-  // Leave the halftime break and start the first track of the second run.
-  function continueToSecondRun() {
+  function continueAfterIntermission() {
     setIntermissionOpen(false);
     if (currentSong) startPlayback(currentSong);
   }
@@ -3497,7 +3495,7 @@ export default function App() {
       {intermissionOpen ? (
         <IntermissionOverlay
           completedTrials={completedTrials}
-          onContinue={continueToSecondRun}
+          onContinue={continueAfterIntermission}
           totalTrials={totalTrials}
         />
       ) : null}

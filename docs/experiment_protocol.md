@@ -60,7 +60,8 @@ protocol_id, participant_number, protocol_label, timestamp, block_order,
 run_number, run_order, block_number, block_mode, track_number, song_id,
 spotify_id, song_title, artist, song_quadrant, song_valence, song_arousal,
 face_present, ecg_connected, physiology_quality, detected_valence,
-detected_arousal, physiology_arousal, rating_like_1_to_7, rating_fit_1_to_7
+detected_arousal, physiology_arousal, physiology_coherence,
+rating_like_1_to_7, rating_fit_1_to_7
 ```
 
 `participant_number` and `protocol_label` ("Protokoll 1/2") identify the
@@ -69,6 +70,9 @@ participant and the masked condition order; `block_order` is the actual sequence
 `block_number` is the block position (1–2). (`run_number` is always 1 and
 `run_order` equals `block_order` now that each participant runs the loop once —
 kept for backward compatibility.)
+`physiology_arousal` is the active HR/RMSSD z-score arousal estimate;
+`physiology_coherence` is exported only as an experimental rhythm/coherence
+diagnostic.
 
 Primary analysis (between-subjects counterbalanced): compare `rating_fit_1_to_7`
 between `block_mode = vibe` and `block_mode = random`, controlling for

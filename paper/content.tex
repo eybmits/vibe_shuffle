@@ -9,10 +9,11 @@ history rather than for the listener's \emph{current} affective state. As a
 result, the same playlist is served whether a listener is tense and restless or
 calm and content.
 
-A growing body of work in affective computing shows that emotional state can be
-estimated from facial expression and from autonomic signals such as heart-rate
-variability, and organises emotion along the two dimensions of valence and
-arousal~\cite{russell1980, posner2005}. Bringing such estimates to bear on music
+A growing body of work in affective computing estimates affect from facial
+expression and from autonomic signals such as heart-rate variability, and
+organises it along the two dimensions of valence and arousal---a low-dimensional
+\emph{core affect} rather than discrete, labelled emotions~\cite{russell1980,
+posner2005}. Bringing such estimates to bear on music
 selection is attractive, but two obstacles recur: continuously streaming camera
 and physiological data to a server raises serious privacy concerns, and claims of
 ``mood-aware'' selection are rarely evaluated against a matched baseline.
@@ -39,12 +40,16 @@ heart-rate sensor feeds an arousal estimator, the channels are fused into a
 $(\textit{valence}, \textit{arousal})$ state, that state is mapped to one of four
 quadrants, and a ranking step selects the next track. Playback is handled by the
 Spotify Web Playback SDK so that licensed audio plays in the browser without the
-application ever receiving the audio stream.
+application ever receiving the audio stream. Throughout, the pipeline estimates a
+continuous valence--arousal coordinate---a behavioural-physiological proxy for
+\emph{core affect}~\cite{russell1980}---rather than classifying discrete, named
+emotions.
 
 \subsection{Valence from facial expression}
 A MediaPipe Face Landmarker~\cite{mediapipe2019} produces per-frame blendshape
-activations that are reduced to \emph{happy}, \emph{tense}, and \emph{sad}
-scores. A slowly learned personal neutral baseline is subtracted to correct for
+activations that are reduced to three facial-\emph{expression} scores we label
+\emph{happy}, \emph{tense}, and \emph{sad}---measures of facial display, not of
+inferred feeling. A slowly learned personal neutral baseline is subtracted to correct for
 resting facial morphology, and the positive-versus-negative balance is mapped to a
 continuous valence $v \in [0,1]$. Head and body motion (nose-tip drift and
 frame-to-frame differencing) feed a motion channel that nudges the positive score
@@ -61,8 +66,10 @@ a_{\mathrm{phys}} = \operatorname{clip}\!\left(\tfrac{1}{2}
 + \alpha\, z(\mathrm{HR}) - \beta\, z(\mathrm{RMSSD}),\; 0,\; 1\right).
 \end{equation}
 SDNN is logged for signal-quality control but excluded from the short-window
-estimate. The sensor is strictly optional; the system degrades gracefully without
-it.
+estimate. The export also retains a rhythm diagnostic for exploratory analysis.
+It is not used as the arousal driver because it measures regularity rather than
+baseline-relative autonomic activation. The sensor is strictly optional; the
+system degrades gracefully without it.
 
 \subsection{Fusion and quadrants}
 The fused state takes valence from the face and arousal primarily from the heart,
@@ -165,9 +172,11 @@ Field & Meaning \\
 \texttt{song\_quadrant} & target affect quadrant of the track \\
 \texttt{detected\_valence} & fused listener valence \\
 \texttt{detected\_arousal} & fused listener arousal \\
+\texttt{physiology\_arousal} & baseline-relative HR/RMSSD arousal estimate \\
+\texttt{physiology\_coherence} & exported cardiac-coherence diagnostic, not a selection driver \\
 \texttt{physiology\_quality} & heart-rate signal-quality flag \\
-\texttt{rating\_fit\_1\_to\_5} & primary outcome: mood-fit \\
-\texttt{rating\_like\_1\_to\_5} & control: liking \\
+\texttt{rating\_fit\_1\_to\_7} & primary outcome: mood-fit \\
+\texttt{rating\_like\_1\_to\_7} & control: liking \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -181,10 +190,22 @@ anonymous rating CSV ever leaves the browser, at the participant's initiative.
 This makes the system suitable for low-friction field deployment and for
 classroom or seminar replication.
 
-Several limitations bound the claims. The estimator is a transparent heuristic
-rather than a validated clinical affect measure; facial valence is sensitive to
-lighting and occlusion, and the arousal channel depends on a compatible sensor
-that not every participant will own. The pool is small and fixed by design, so
+Several limitations bound the claims. The system does not recognise discrete
+emotions: it estimates a low-dimensional core-affect proxy from a
+facial-expression display, autonomic arousal, and head motion. Facial movements
+are not a reliable read-out of felt emotion---the same expression recurs across
+states and the same state across expressions~\cite{barrett2019}---and
+physiological arousal is undifferentiated and valence-blind, raised alike by
+excitement, exertion, or the played music itself; the detected state is therefore
+a behavioural-physiological correlate of affect rather than affect itself.
+Because both axes are referenced to a per-session personal baseline, the system
+tracks change relative to the listener's starting point rather than an absolute
+state: a listener who begins aroused has that state absorbed into the neutral
+baseline, so the absolute initial affect is unobserved---a self-reported baseline
+(e.g.\ a Self-Assessment Manikin) would anchor it. The estimator is a transparent
+heuristic rather than a validated clinical affect measure; facial valence is
+sensitive to lighting and occlusion, and the arousal channel depends on a
+compatible sensor that not every participant will own. The pool is small and fixed by design, so
 results speak to relative ranking \emph{within} that pool rather than to
 catalogue-scale recommendation. Finally, self-reported mood-fit is a perceptual
 proxy; it captures whether selection \emph{feels} apt, which is the intended user

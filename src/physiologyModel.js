@@ -223,26 +223,43 @@ export function summarizePhysiologyMeasurements(
         ? "good"
         : "low";
 
-  // Baseline z-scores (logged, and the time-domain fallback for arousal). HR is
-  // compared median-to-median to avoid a mean-vs-median skew that biases z_hr.
-  const zHr = baseline && Number.isFinite(metrics.hr_bpm_median) ? (metrics.hr_bpm_median - baseline.median_hr_bpm) / baseline.hr_mad : null;
-  const zRmssd = baseline && Number.isFinite(metrics.rmssd_ms) ? (baseline.median_rmssd_ms - metrics.rmssd_ms) / baseline.rmssd_mad : null;
-  const zSdnn = baseline && Number.isFinite(metrics.sdnn_ms) ? (baseline.median_sdnn_ms - metrics.sdnn_ms) / baseline.sdnn_mad : null;
+  // Baseline z-scores. HR is compared median-to-median to avoid a
+  // mean-vs-median skew that biases z_hr. z_rmssd is intentionally signed for
+  // arousal: positive means RMSSD fell below baseline.
+  const zHr =
+    baseline &&
+    Number.isFinite(metrics.hr_bpm_median) &&
+    Number.isFinite(baseline.median_hr_bpm) &&
+    Number.isFinite(baseline.hr_mad) &&
+    baseline.hr_mad > 0
+      ? (metrics.hr_bpm_median - baseline.median_hr_bpm) / baseline.hr_mad
+      : null;
+  const zRmssd =
+    baseline &&
+    Number.isFinite(metrics.rmssd_ms) &&
+    Number.isFinite(baseline.median_rmssd_ms) &&
+    Number.isFinite(baseline.rmssd_mad) &&
+    baseline.rmssd_mad > 0
+      ? (baseline.median_rmssd_ms - metrics.rmssd_ms) / baseline.rmssd_mad
+      : null;
+  const zSdnn =
+    baseline &&
+    Number.isFinite(metrics.sdnn_ms) &&
+    Number.isFinite(baseline.median_sdnn_ms) &&
+    Number.isFinite(baseline.sdnn_mad) &&
+    baseline.sdnn_mad > 0
+      ? (baseline.median_sdnn_ms - metrics.sdnn_ms) / baseline.sdnn_mad
+      : null;
 
-  // Attempt to calculate the Coherence Score via FFT
-  const coherenceArousal = calculateCoherenceScore(rrIntervals);
-
-  // If FFT succeeds, use it! Otherwise, fallback to the old time-domain z-score method.
-  let physiologyArousal = null;
-  if (quality === "good") {
-    if (coherenceArousal !== null) {
-      physiologyArousal = coherenceArousal;
-    } else if (baseline) {
-      // Fallback
-      physiologyArousal = clamp(0.5 + ((zHr ?? 0) + (zRmssd ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT);
-    }
-  }
-  // -----------------------
+  const filteredRrIntervals = filterRrIntervals(rrIntervals).accepted;
+  const physiologyCoherence = hasUsableHrv
+    ? calculateCoherenceScore(filteredRrIntervals)
+    : null;
+  const hasBaselineArousal = Number.isFinite(zHr) || Number.isFinite(zRmssd);
+  const physiologyArousal =
+    quality === "good" && baseline && hasBaselineArousal
+      ? clamp(0.5 + ((zHr ?? 0) + (zRmssd ?? 0)) * PHYSIOLOGY_AROUSAL_WEIGHT)
+      : null;
 
   return {
     ...metrics,
@@ -250,6 +267,7 @@ export function summarizePhysiologyMeasurements(
     baseline_rmssd_ms: baseline?.median_rmssd_ms ?? null,
     ecg_connected: hasHeartRate,
     physiology_arousal: roundNullable(physiologyArousal),
+    physiology_coherence: roundNullable(physiologyCoherence),
     physiology_quality: quality,
     z_hr: roundNullable(zHr),
     z_rmssd: roundNullable(zRmssd),
@@ -258,8 +276,9 @@ export function summarizePhysiologyMeasurements(
 }
 
 
-// Coherence Score calculation (Balaji et al., 2025)
-// Maps HRV frequency stability to arousal: high coherence = stable rhythm = higher arousal
+// Experimental cardiac-coherence feature, logged for analysis only. It is not
+// used as the arousal driver because coherence tracks rhythmic regularity rather
+// than baseline-relative autonomic activation.
 
 // Linearly interpolate RR intervals to a regular 2 Hz time series
 function interpolateRrToTimeSeries(rrIntervalsMs, samplingRateHz = 2) {
@@ -395,8 +414,8 @@ function calculatePsd(signal, samplingRateHz = 2) {
   return psd;
 }
 
-// Calculate Coherence Score (Balaji et al., 2025)
-// Maps to arousal: higher CS = smoother, more coherent rhythm = higher arousal/stability
+// Calculate a normalized coherence proxy: higher values mean a narrower
+// frequency-domain peak in the 0.04-0.26 Hz band.
 function calculateCoherenceScore(rrIntervalsMs, samplingRateHz = 2) {
   if (rrIntervalsMs.length < 20) return null;
 
@@ -443,10 +462,11 @@ function calculateCoherenceScore(rrIntervalsMs, samplingRateHz = 2) {
   const coherenceRatio = (peakPower / totalBelow) * (peakPower / totalAbove);
   const coherenceScore = Math.log(coherenceRatio + 1);
 
-  // Normalize CS to 0-1 arousal scale (empirically: CS ~0-8 maps to arousal 0-1)
-  const normArousal = clamp(coherenceScore / 8);
+  // Normalize to a compact 0-1 diagnostic scale. This is intentionally not an
+  // arousal scale.
+  const normCoherence = clamp(coherenceScore / 8);
 
-  return roundNullable(normArousal);
+  return roundNullable(normCoherence);
 }
 
 function quadrantFromAxes(valence, energy) {

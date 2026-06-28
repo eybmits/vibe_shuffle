@@ -29,9 +29,10 @@ heart-rate sensor ──► HR/RR packets ──► physiologyModel ──► ar
   (down), centered on that baseline. HR uses a **median-to-median** comparison
   (window and baseline share the statistic, so a resting state stays centered);
   the RMSSD/SDNN baselines take a **robust median across short chunks**. SDNN is
-  logged but excluded from the short-window estimate. A single 60 s window is
-  intrinsically noisy (≈ ±0.11), so arousal reads as a trend, not a precise
-  instantaneous value.
+  logged but excluded from the short-window estimate. A frequency-domain
+  `physiology_coherence` diagnostic is exported for later analysis, but it does
+  not drive the arousal axis. A single 60 s window is intrinsically noisy
+  (≈ ±0.11), so arousal reads as a trend, not a precise instantaneous value.
 - **Fusion** (`fuseEmotionSignals`): face sets valence; a usable ECG sets the
   arousal base (both directions); head motion adds to arousal on top. Without a
   usable ECG, the face/motion channel carries arousal (upward only). With no

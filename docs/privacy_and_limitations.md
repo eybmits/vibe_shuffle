@@ -25,6 +25,11 @@ below neutral. Head/body motion adds to arousal on top of the ECG. HR/HRV is an
 experimental arousal signal, not a standalone emotion classifier, and the weights
 are pilot values, not validated clinical coefficients.
 
+A separate frequency-domain `physiology_coherence` value is exported as an
+experimental diagnostic of rhythmic regularity. It is not mapped onto the
+arousal axis because coherence is not the same construct as baseline-relative
+autonomic activation.
+
 The HR comparison is **median-to-median** — the live window and the baseline use
 the same statistic, so a steady (baseline-equal) state sits at the neutral
 midpoint instead of drifting up (a window-mean vs. baseline-median comparison

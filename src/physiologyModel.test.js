@@ -76,13 +76,14 @@ test("normalizes arousal against personal baseline", () => {
   assert.equal(summary.physiology_quality, "good");
   assert.ok(summary.z_hr > 4);
   assert.ok(summary.z_rmssd > 4);
-  // Arousal itself now comes from the frequency-domain coherence score; the
-  // z-scores above are what is normalized against the personal baseline.
-  assert.ok(Number.isFinite(summary.physiology_arousal));
-  assert.ok(summary.physiology_arousal >= 0 && summary.physiology_arousal <= 1);
+  // High HR + low RMSSD saturates the baseline-relative arousal estimate.
+  assert.equal(summary.physiology_arousal, 1);
+  // Coherence is logged separately for later analysis, but does not drive arousal.
+  assert.ok(Number.isFinite(summary.physiology_coherence));
+  assert.ok(summary.physiology_coherence >= 0 && summary.physiology_coherence <= 1);
 });
 
-test("reports baseline z-scores (HR, RMSSD, SDNN) alongside the coherence arousal", () => {
+test("reports baseline z-scores and coherence alongside z-score arousal", () => {
   const baseline = {
     hr_mad: 10,
     median_hr_bpm: 70,
@@ -99,9 +100,9 @@ test("reports baseline z-scores (HR, RMSSD, SDNN) alongside the coherence arousa
   // RMSSD and SDNN are computed and logged for analysis.
   assert.ok(Number.isFinite(summary.z_rmssd));
   assert.ok(Number.isFinite(summary.z_sdnn));
-  // Arousal is the frequency-domain coherence score (a finite 0–1 value).
-  assert.ok(Number.isFinite(summary.physiology_arousal));
-  assert.ok(summary.physiology_arousal >= 0 && summary.physiology_arousal <= 1);
+  assert.ok(summary.physiology_arousal > 0.5);
+  assert.ok(Number.isFinite(summary.physiology_coherence));
+  assert.ok(summary.physiology_coherence >= 0 && summary.physiology_coherence <= 1);
 });
 
 test("neutral face plus high HR and low HRV maps to tense", () => {
@@ -235,6 +236,26 @@ test("ECG arousal moves below 0.5 when HR drops and HRV rises", () => {
 
   const fused = fuseEmotionSignals({ facePresent: false }, summary);
   assert.ok(fused.energy < 0.5);
+});
+
+test("coherence does not override baseline-relative arousal", () => {
+  const baseline = {
+    hr_mad: 10,
+    median_hr_bpm: 70,
+    median_rmssd_ms: 20,
+    median_sdnn_ms: 15,
+    rmssd_mad: 8,
+    sdnn_mad: 8,
+  };
+  const rr = Array.from({ length: 80 }, (_, index) =>
+    850 + Math.sin((index / 80) * Math.PI * 8) * 180,
+  );
+  const summary = summarizePhysiologyMeasurements(measurementsFromRr(rr, 70), baseline);
+
+  assert.equal(summary.physiology_quality, "good");
+  assert.ok(Number.isFinite(summary.physiology_coherence));
+  assert.ok(summary.physiology_coherence > 0);
+  assert.ok(summary.physiology_arousal < 0.5, `arousal was ${summary.physiology_arousal}`);
 });
 
 test("no face and no usable ECG falls back to neutral centre", () => {

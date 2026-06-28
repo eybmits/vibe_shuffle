@@ -13,12 +13,11 @@ Live demo: https://eybmits.github.io/vibe-tracker-pages/
 - Plays a **fixed curated pool of 100 well-known Spotify tracks** (25 per
   valence/arousal quadrant) via the Spotify Web Playback SDK. No personal
   library is read — Spotify is used **only for playback**.
-- Runs a **within-subject counterbalanced protocol**: every participant goes
-  through the loop **twice** — once Random→Vibe and once Vibe→Random — for **20
-  tracks** (two runs × two blocks × 5 tracks, 60 seconds each). Which run comes
-  first is **randomized per session**, and a short break separates the two runs.
-  No account is needed: one complete 20-track session = one participant
-  (`protocol_id`).
+- Runs a **between-subjects counterbalanced protocol**: every participant gets
+  one masked order — Random→Vibe or Vibe→Random — for **10 tracks** (two blocks
+  × 5 tracks, 60 seconds each). The participant number pre-selects the suggested
+  protocol, and the experimenter can override it. No account is needed: one
+  complete 10-track session = one participant (`protocol_id`).
 - Estimates the participant's state locally:
   - **Camera → valence.** MediaPipe Face Landmarker blendshapes are mapped to a
     *continuous* valence with a personal neutral baseline (small deviations from
@@ -106,9 +105,7 @@ npm run preview  # serve the production build
 2. **Camera** (optional) and **heart-rate sensor** (optional; a "Demo" sensor
    is available for testing) can be enabled.
 3. **Begin session.** Each track plays for 60 s, then the two ratings appear.
-4. After the first 10 tracks a short **intermission** marks the halfway point;
-   the second run then replays both methods in the opposite order.
-5. After all 20 tracks the result chart is shown and the CSV is offered.
+4. After all 10 tracks the result chart is shown and the CSV is offered.
 
 ## CSV columns
 
@@ -119,14 +116,15 @@ protocol_id, timestamp, block_order, run_number, run_order, block_number,
 block_mode, track_number, song_id, spotify_id, song_title, artist,
 song_quadrant, song_valence, song_arousal, face_present, ecg_connected,
 physiology_quality, detected_valence, detected_arousal, physiology_arousal,
-rating_like_1_to_7, rating_fit_1_to_7
+physiology_coherence, rating_like_1_to_7, rating_fit_1_to_7
 ```
 
-`block_mode` is `random` or `vibe`. `block_order` is the full session sequence
-of all four blocks (e.g. `random>vibe>vibe>random`); `run_number` is the loop
-(1 or 2) and `run_order` is that loop's own order (e.g. `random>vibe`), so the
-within-subject counterbalancing is explicit. `detected_valence`/`detected_arousal`
-are the fused state at rating time.
+`block_mode` is `random` or `vibe`. `block_order` is the full two-block session
+sequence (e.g. `random>vibe`); `run_number` is always 1 and `run_order` equals
+`block_order`, retained for backward-compatible exports. `detected_valence`/
+`detected_arousal` are the fused state at rating time. `physiology_arousal` is
+the baseline-relative HR/RMSSD z-score estimate; `physiology_coherence` is logged
+as an experimental diagnostic and is not used for track selection.
 
 ## Deployment
 
