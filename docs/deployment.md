@@ -1,13 +1,13 @@
 # Deployment
 
-The project uses two repositories:
+The project uses one repository:
 
-- Source repository: `eybmits/vibe-tracker`
-- Static GitHub Pages repository: `eybmits/vibe-tracker-pages`
+- Source repository: `eybmits/vibe-shuffle`
+- Static GitHub Pages branch: `gh-pages`
 
 Live site:
 
-https://eybmits.github.io/vibe-tracker-pages/
+https://eybmits.github.io/vibe-shuffle/
 
 ## Build
 
@@ -19,27 +19,27 @@ npm run build
 The build output is written to `dist/`. The Spotify Client ID is baked in from
 `VITE_SPOTIFY_CLIENT_ID` at build time, so build with the `.env` present.
 
-## Deploy To GitHub Pages Repo
+## Deploy To GitHub Pages
 
 From a clean source checkout:
 
 ```bash
 npm run build
-rm -rf /tmp/vibe-tracker-pages-deploy
-git clone https://github.com/eybmits/vibe-tracker-pages.git /tmp/vibe-tracker-pages-deploy
-find /tmp/vibe-tracker-pages-deploy -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/. /tmp/vibe-tracker-pages-deploy/
-cd /tmp/vibe-tracker-pages-deploy
+rm -rf /tmp/vibe-shuffle-pages
+git clone --branch gh-pages --single-branch https://github.com/eybmits/vibe-shuffle.git /tmp/vibe-shuffle-pages
+find /tmp/vibe-shuffle-pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+cp -R dist/. /tmp/vibe-shuffle-pages/
+cd /tmp/vibe-shuffle-pages
 touch .nojekyll
 git add -A
 git commit -m "Deploy Vibe Shuffle update"
-git push origin main
+git push origin gh-pages
 ```
 
 ## Verification
 
 ```bash
-curl -I -L https://eybmits.github.io/vibe-tracker-pages/
+curl -I -L https://eybmits.github.io/vibe-shuffle/
 ```
 
 Expected result: `HTTP/2 200`.

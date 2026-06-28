@@ -46,7 +46,7 @@ until both ratings (liking, then mood-fit) are submitted.
 GitHub Pages and CDN caches can lag a push. Verify the served bundle:
 
 ```bash
-curl -L https://eybmits.github.io/vibe-tracker-pages/ | grep assets
+curl -L https://eybmits.github.io/vibe-shuffle/ | grep assets
 ```
 
 Then hard-refresh the browser (Cmd/Ctrl+Shift+R), or use a private window.

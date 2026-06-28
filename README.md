@@ -1,12 +1,12 @@
-# VibeTracker
+# Vibe Shuffle
 
-VibeTracker is a single-page React app for a blinded music-recommendation
+Vibe Shuffle is a single-page React app for a blinded music-recommendation
 validation study. It compares a passive **Random Shuffle** block against a
 mood-adaptive **Vibe Shuffle** block, while estimating the participant's
 affective state locally in the browser (facial expression + optional heart-rate
 sensor) and logging two ratings per track.
 
-Live demo: https://eybmits.github.io/vibe-tracker-pages/
+Live demo: https://eybmits.github.io/vibe-shuffle/
 
 ## What it does
 
@@ -128,7 +128,7 @@ as an experimental diagnostic and is not used for track selection.
 
 ## Deployment
 
-The build in `dist/` is published to a separate GitHub Pages repo. See
+The build in `dist/` is published to GitHub Pages from the `gh-pages` branch. See
 [docs/deployment.md](docs/deployment.md).
 
 ## License

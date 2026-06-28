@@ -1,15 +1,15 @@
 {
-  "name": "vibe-tracker",
+  "name": "vibe-shuffle",
   "version": "0.1.0",
   "description": "Mood-adaptive music validation dashboard comparing Random Shuffle and Vibe Shuffle.",
   "license": "MIT",
-  "homepage": "https://eybmits.github.io/vibe-tracker-pages/",
+  "homepage": "https://eybmits.github.io/vibe-shuffle/",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eybmits/vibe-tracker.git"
+    "url": "https://github.com/eybmits/vibe-shuffle.git"
   },
   "bugs": {
-    "url": "https://github.com/eybmits/vibe-tracker/issues"
+    "url": "https://github.com/eybmits/vibe-shuffle/issues"
   },
   "keywords": [
     "music-recommendation",
