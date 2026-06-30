@@ -74,10 +74,11 @@ kept for backward compatibility.)
 `physiology_coherence` is exported only as an experimental rhythm/coherence
 diagnostic.
 
-Primary analysis (between-subjects counterbalanced): compare `rating_fit_1_to_7`
-between `block_mode = vibe` and `block_mode = random`, controlling for
-`rating_like_1_to_7` and for block position (`block_number`), with the order
-balanced across the two protocols. A mixed model
-`fit ~ block_mode + block_number + (1 | participant_number)` uses each
-participant's own Random-vs-Vibe contrast while the order confound is balanced
-across protocols.
+Primary analysis (within-participant Vibe-vs-Random contrast, with order
+counterbalanced across participants): compare `rating_fit_1_to_7` between
+`block_mode = vibe` and `block_mode = random`, controlling for
+`rating_like_1_to_7`, block position (`block_number`), and protocol/order when
+sample size allows. A mixed model such as
+`rating_fit_1_to_7 ~ block_mode + rating_like_1_to_7 + block_number + protocol_label + (1 | participant_number)`
+uses each participant's own Random-vs-Vibe contrast while keeping the order
+factor visible.
