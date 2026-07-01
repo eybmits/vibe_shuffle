@@ -62,7 +62,8 @@ heart-rate sensor ──► HR/RR packets ──► physiologyModel ──► ar
   exports that same full-window detected valence/arousal plus the 60 s
   physiology summary.
 - **Rating**: after each track, two sequential 7-point questions (liking, then
-  mood-fit) collected in `RatingModal` and saved by `submitRating`.
+  mood-fit) plus one categorical current-mood self-report are collected in
+  `RatingModal` and saved by `submitRating`.
 - **Result**: `ResultsChart` shows mean mood-fit Vibe vs Random (liking as a
   control); `downloadCsv` exports the slim `CSV_COLUMNS`.
 

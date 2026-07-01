@@ -52,7 +52,7 @@ const SPOTIFY_TOKEN_STORAGE_KEY = "vibe_shuffle_spotify_token_v3";
 
 const RATING_SCORES = [1, 2, 3, 4, 5, 6, 7];
 
-// Two separate 7-point Likert questions per track, asked in sequence.
+// Two 7-point Likert questions plus one categorical self-report per track.
 const LIKING_QUESTION = {
   key: "rating_like_1_to_7",
   title: "How much do you like this song?",
@@ -65,6 +65,37 @@ const FIT_QUESTION = {
   lowLabel: "Not at all",
   highLabel: "Perfect fit",
 };
+const SELF_REPORTED_MOOD_QUESTION = {
+  key: "self_reported_mood",
+  title: "Which mood are you in right now?",
+};
+const SELF_REPORTED_MOOD_OPTIONS = [
+  {
+    key: "energetic",
+    label: "Energetic",
+    tone: "from-emerald-300 to-cyan-300",
+  },
+  {
+    key: "calm",
+    label: "Calm",
+    tone: "from-sky-300 to-teal-300",
+  },
+  {
+    key: "tense",
+    label: "Tense",
+    tone: "from-orange-300 to-rose-300",
+  },
+  {
+    key: "melancholic",
+    label: "Melancholic",
+    tone: "from-violet-300 to-sky-300",
+  },
+  {
+    key: "neutral",
+    label: "Neutral",
+    tone: "from-slate-200 to-slate-400",
+  },
+];
 
 const BLOCKS_PER_RUN = 2; // one Random block + one Vibe block = the A/B loop
 const RUN_COUNT = 1; // each participant runs the loop once, in ONE fixed order
@@ -215,6 +246,7 @@ const CSV_COLUMNS = [
   "physiology_coherence",
   "rating_like_1_to_7",
   "rating_fit_1_to_7",
+  "self_reported_mood",
 ];
 
 function ratingsToCsv(ratings) {
@@ -2613,10 +2645,39 @@ function LikertScale({ highLabel, lowLabel, onSelect, value }) {
   );
 }
 
+function MoodChoiceGrid({ onSelect, value }) {
+  return (
+    <div className="mt-6 grid gap-2 sm:grid-cols-2">
+      {SELF_REPORTED_MOOD_OPTIONS.map((option) => {
+        const active = value === option.key;
+        return (
+          <button
+            className={`flex min-h-16 items-center justify-between rounded-2xl border px-4 py-3 text-left text-base font-semibold transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
+              active
+                ? "border-transparent bg-white text-[#05060f] shadow-[0_14px_36px_rgba(34,211,238,0.22)]"
+                : "border-white/10 bg-white/[0.04] text-slate-100 hover:border-cyan-300/40 hover:bg-white/[0.08]"
+            }`}
+            key={option.key}
+            onClick={() => onSelect(option.key)}
+            type="button"
+          >
+            <span>{option.label}</span>
+            <span
+              aria-hidden="true"
+              className={`size-3 rounded-full bg-gradient-to-br ${option.tone} shadow-[0_0_20px_rgba(255,255,255,0.22)]`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function RatingModal({ isLastTrial, onSubmit, open, song }) {
   const [step, setStep] = useState("like");
   const [likeScore, setLikeScore] = useState(null);
   const [fitScore, setFitScore] = useState(null);
+  const [selfReportedMood, setSelfReportedMood] = useState("");
 
   // Reset to step 1 whenever a new track's rating opens.
   useEffect(() => {
@@ -2624,25 +2685,31 @@ function RatingModal({ isLastTrial, onSubmit, open, song }) {
       setStep("like");
       setLikeScore(null);
       setFitScore(null);
+      setSelfReportedMood("");
     }
   }, [open, song?.id]);
 
   if (!open || !song) return null;
 
   const onLike = step === "like";
-  const question = onLike ? LIKING_QUESTION : FIT_QUESTION;
-  const value = onLike ? likeScore : fitScore;
+  const onFit = step === "fit";
+  const onMood = step === "mood";
+  const question = onLike ? LIKING_QUESTION : onFit ? FIT_QUESTION : SELF_REPORTED_MOOD_QUESTION;
+  const value = onLike ? likeScore : onFit ? fitScore : selfReportedMood;
+  const stepNumber = onLike ? 1 : onFit ? 2 : 3;
 
   const handleSelect = (score) => {
     if (onLike) setLikeScore(score);
-    else setFitScore(score);
+    else if (onFit) setFitScore(score);
   };
 
   const handleNext = () => {
     if (onLike) {
       setStep("fit");
-    } else if (likeScore && fitScore) {
-      onSubmit(likeScore, fitScore);
+    } else if (onFit) {
+      setStep("mood");
+    } else if (likeScore && fitScore && selfReportedMood) {
+      onSubmit(likeScore, fitScore, selfReportedMood);
     }
   };
 
@@ -2654,10 +2721,16 @@ function RatingModal({ isLastTrial, onSubmit, open, song }) {
         role="dialog"
       >
         <div className="flex items-center justify-between">
-          <SectionLabel icon={BarChart3}>Rating · step {onLike ? "1" : "2"} of 2</SectionLabel>
+          <SectionLabel icon={BarChart3}>Rating · step {stepNumber} of 3</SectionLabel>
           <div className="flex gap-1.5">
-            <span className={`h-1.5 w-8 rounded-full ${onLike ? ACCENT_GRADIENT : "bg-white/15"}`} />
-            <span className={`h-1.5 w-8 rounded-full ${onLike ? "bg-white/15" : ACCENT_GRADIENT}`} />
+            {[1, 2, 3].map((item) => (
+              <span
+                className={`h-1.5 w-8 rounded-full ${
+                  stepNumber === item ? ACCENT_GRADIENT : "bg-white/15"
+                }`}
+                key={item}
+              />
+            ))}
           </div>
         </div>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
@@ -2668,16 +2741,20 @@ function RatingModal({ isLastTrial, onSubmit, open, song }) {
           {song.artist}.
         </p>
 
-        <LikertScale
-          highLabel={question.highLabel}
-          lowLabel={question.lowLabel}
-          onSelect={handleSelect}
-          value={value}
-        />
+        {onMood ? (
+          <MoodChoiceGrid onSelect={setSelfReportedMood} value={selfReportedMood} />
+        ) : (
+          <LikertScale
+            highLabel={question.highLabel}
+            lowLabel={question.lowLabel}
+            onSelect={handleSelect}
+            value={value}
+          />
+        )}
 
         <div className="mt-7 flex items-center justify-end">
           <PrimaryButton disabled={!value} onClick={handleNext}>
-            {onLike ? "Next" : isLastTrial ? "Finish session" : "Next track"}
+            {onMood ? (isLastTrial ? "Finish session" : "Next track") : "Next"}
             <ArrowRight className="size-4" />
           </PrimaryButton>
         </div>
@@ -3348,9 +3425,9 @@ export default function App() {
     moveToSong(nextSong);
   }
 
-  // Two-step rating: liking + mood-fit are collected in the modal, then saved
-  // and the protocol advances in one step.
-  function submitRating(likeScore, fitScore) {
+  // Three-step rating: liking + mood-fit + self-reported mood are collected in
+  // the modal, then saved and the protocol advances in one step.
+  function submitRating(likeScore, fitScore, selfReportedMood) {
     if (protocolComplete || !ratingPromptOpen || !currentSong) return;
 
     const expressionSummary = currentWindowSummary();
@@ -3386,6 +3463,7 @@ export default function App() {
       physiology_coherence: physiologySummary.physiology_coherence,
       rating_like_1_to_7: likeScore,
       rating_fit_1_to_7: fitScore,
+      self_reported_mood: selfReportedMood,
     };
 
     const nextRatings = ratings.some((rating) => rating.trial_id === trialId)

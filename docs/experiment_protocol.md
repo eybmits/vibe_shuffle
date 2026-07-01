@@ -48,13 +48,18 @@ heart-rate arousal plus head-motion; see `architecture.md`.
 
 ## Ratings
 
-After each track, two **7-point** questions are asked **in sequence**:
+After each track, three questions are asked **in sequence**:
 
 1. **Liking** — "How much do you like this song?" → `rating_like_1_to_7`
 2. **Mood-fit** — "How well did it fit your current mood?" → `rating_fit_1_to_7`
+3. **Self-reported mood** — "Which mood are you in right now?" →
+   `self_reported_mood`, one of `energetic`, `calm`, `tense`, `melancholic`,
+   or `neutral`
 
 Mood-fit is the primary outcome; liking is the control. Asking both lets the
 analysis separate "did not fit my mood" from "I just don't like this song".
+The categorical mood self-report is an additional validation/sanity-check field
+for comparing the participant's own label with the detected mood-space position.
 
 ## Outcome & export
 
@@ -68,7 +73,7 @@ run_number, run_order, block_number, block_mode, track_number, song_id,
 spotify_id, song_title, artist, song_quadrant, song_valence, song_arousal,
 face_present, ecg_connected, physiology_quality, detected_valence,
 detected_arousal, physiology_arousal, physiology_coherence,
-rating_like_1_to_7, rating_fit_1_to_7
+rating_like_1_to_7, rating_fit_1_to_7, self_reported_mood
 ```
 
 `participant_number` and `protocol_label` ("Protokoll 1/2") identify the

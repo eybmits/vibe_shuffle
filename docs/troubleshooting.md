@@ -22,9 +22,10 @@ library rate limits.)
 
 ## Rating does not appear
 
-The two-step rating opens after the **60 s** listening window. The participant
+The three-step rating opens after the **60 s** listening window. The participant
 can also click **Rate now** to open it early. The next track does not start
-until both ratings (liking, then mood-fit) are submitted.
+until both ratings (liking, then mood-fit) and the mood self-report are
+submitted.
 
 ## Camera blocked
 

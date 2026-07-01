@@ -4,7 +4,7 @@ Vibe Shuffle is a single-page React app for a blinded music-recommendation
 validation study. It compares a passive **Random Shuffle** block against a
 mood-adaptive **Vibe Shuffle** block, while estimating the participant's
 affective state locally in the browser (facial expression + optional heart-rate
-sensor) and logging two ratings per track.
+sensor) and logging two ratings plus one mood self-report per track.
 
 Live demo: https://eybmits.github.io/vibe-shuffle/
 
@@ -37,9 +37,10 @@ Live demo: https://eybmits.github.io/vibe-shuffle/
   average fused mood-space position across the 60 s listening window; the
   **Random** block picks deterministically at random. Both draw from the same
   100-track pool. The CSV saves the same full-window detected valence/arousal.
-- After each track, **two sequential 7-point ratings**: (1) how much you like
-  the song, (2) how well it fit your current mood. Separating liking from
-  mood-fit lets the analysis check whether a low fit is just low liking.
+- After each track, **three sequential questions**: (1) how much you like the
+  song, (2) how well it fit your current mood, and (3) your self-reported mood
+  category: Energetic, Calm, Tense, Melancholic, or Neutral. Separating liking
+  from mood-fit lets the analysis check whether a low fit is just low liking.
 - At the end: a **results chart** (mean mood-fit Vibe vs Random, with liking as
   a control) and a **CSV export** with only the validation-relevant columns.
 - All camera and heart-rate processing stays in the browser. Only the ratings
@@ -106,7 +107,7 @@ npm run preview  # serve the production build
    report ready.
 2. **Camera** (optional) and **heart-rate sensor** (optional; a "Demo" sensor
    is available for testing) can be enabled.
-3. **Begin session.** Each track plays for 60 s, then the two ratings appear.
+3. **Begin session.** Each track plays for 60 s, then the rating questions appear.
 4. After all 10 tracks the result chart is shown and the CSV is offered.
 
 ## CSV columns
@@ -118,14 +119,15 @@ protocol_id, timestamp, block_order, run_number, run_order, block_number,
 block_mode, track_number, song_id, spotify_id, song_title, artist,
 song_quadrant, song_valence, song_arousal, face_present, ecg_connected,
 physiology_quality, detected_valence, detected_arousal, physiology_arousal,
-physiology_coherence, rating_like_1_to_7, rating_fit_1_to_7
+physiology_coherence, rating_like_1_to_7, rating_fit_1_to_7, self_reported_mood
 ```
 
 `block_mode` is `random` or `vibe`. `block_order` is the full two-block session
 sequence (e.g. `random>vibe`); `run_number` is always 1 and `run_order` equals
 `block_order`, retained for backward-compatible exports. `detected_valence`/
-`detected_arousal` are the fused state at rating time. `physiology_arousal` is
-the baseline-relative HR/RMSSD z-score estimate; `physiology_coherence` is logged
+`detected_arousal` are the full-window fused mood-space average.
+`physiology_arousal` is the baseline-relative HR/RMSSD z-score estimate;
+`physiology_coherence` is logged
 as an experimental diagnostic and is not used for track selection.
 
 ## Deployment

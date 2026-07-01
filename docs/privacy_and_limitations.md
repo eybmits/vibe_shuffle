@@ -74,8 +74,9 @@ with a sensor.
 
 The CSV contains only derived experimental data (`CSV_COLUMNS` in
 `src/App.jsx`): protocol/track metadata, the (hidden) block condition, the fused
-valence/arousal at rating time, optional physiology summary fields, and the two
-ratings. It contains **no** images, video, face landmarks, or raw ECG waveforms.
+valence/arousal summary, optional physiology summary fields, the two ratings,
+and the participant's categorical mood self-report. It contains **no** images,
+video, face landmarks, or raw ECG waveforms.
 
 ## Spotify limitations
 
