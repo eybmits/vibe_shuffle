@@ -136,7 +136,7 @@ as an experimental diagnostic and is not used for track selection.
 
 ## Deployment
 
-The build in `dist/` is published to GitHub Pages by GitHub Actions. See
+The build in `dist/` is published to GitHub Pages from the `gh-pages` branch. See
 [docs/deployment.md](docs/deployment.md).
 
 ## License
