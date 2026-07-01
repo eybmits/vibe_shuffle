@@ -3109,7 +3109,7 @@ export default function App() {
     ],
   );
   const mood = signalStateToMood(liveFusion);
-  const recentIds = useMemo(() => history.slice(-8).map((song) => song.id), [history]);
+  const recentIds = useMemo(() => history.map((song) => song.id), [history]);
   const currentRating = ratings.find((rating) => rating.trial_id === trialId);
   const canJumpToRating =
     sessionStarted &&
@@ -3390,7 +3390,7 @@ export default function App() {
 
   function moveToSong(song, { autoplay = true } = {}) {
     resetSignalWindows();
-    setHistory((items) => [...items.slice(-8), currentSong]);
+    setHistory((items) => [...items, currentSong]);
     setCurrentSong(song);
     setTrialId((value) => value + 1);
     setQueueSeed((value) => value + 19);
