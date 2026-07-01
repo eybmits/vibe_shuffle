@@ -2363,15 +2363,26 @@ function SetupScreen({
             title="Facial Expression"
           >
             {cameraReady ? (
-              <div className="h-32 w-full overflow-hidden rounded-xl border border-white/10 bg-black/50">
-                <video
-                  aria-label="Local camera preview"
-                  className="h-full w-full scale-x-[-1] object-cover opacity-90"
-                  muted
-                  playsInline
-                  ref={face.setVideoRef}
-                />
-              </div>
+              participantView ? (
+                <div
+                  aria-label="Camera connected"
+                  className="grid h-32 w-full place-items-center rounded-xl border border-white/10 bg-white/[0.04] shadow-[inset_0_0_50px_rgba(34,211,238,0.08)]"
+                >
+                  <div className="grid size-20 place-items-center rounded-full border border-cyan-200/20 bg-cyan-200/[0.08] shadow-[0_0_45px_rgba(34,211,238,0.18)]">
+                    <ScanFace className="size-10 text-cyan-100/80" />
+                  </div>
+                </div>
+              ) : (
+                <div className="h-32 w-full overflow-hidden rounded-xl border border-white/10 bg-black/50">
+                  <video
+                    aria-label="Local camera preview"
+                    className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                    muted
+                    playsInline
+                    ref={face.setVideoRef}
+                  />
+                </div>
+              )
             ) : (
               <>
                 <SignalMetric
@@ -3290,6 +3301,7 @@ export default function App() {
   if (!sessionStarted) {
     return (
       <main className="relative min-h-screen bg-[#05060f] text-slate-100">
+        <HiddenCameraFeed active={participantView && cameraReady} face={face} />
         <AuroraBackground />
         <SetupScreen
           cameraReady={cameraReady}
