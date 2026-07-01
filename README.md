@@ -77,8 +77,8 @@ A Spotify app (Client ID) is required for playback. See
 
 1. Create an app at https://developer.spotify.com/dashboard and enable **Web API**
    and **Web Playback SDK**.
-2. Add the redirect URI(s): the deployed site URL and `http://localhost:5173/`
-   for local dev.
+2. Add the redirect URI(s) exactly: `https://eybmits.github.io/vibe-shuffle/`,
+   `http://localhost:5173/`, and any alternate local URL you actually use.
 3. The app is in **Development mode**, so every Spotify account that signs in
    must be added under **User Management** (max. 5) and must have **Spotify
    Premium**.
@@ -90,6 +90,10 @@ VITE_SPOTIFY_CLIENT_ID=your_client_id
 # optional, defaults to the current origin+path:
 # VITE_SPOTIFY_REDIRECT_URI=http://localhost:5173/
 ```
+
+If Spotify reports `redirect_uri: Not matching configuration`, open the app in
+Diagnostics view, copy the displayed Spotify redirect URI, and add that exact
+value in the Spotify Developer Dashboard.
 
 ## Develop, test, build
 

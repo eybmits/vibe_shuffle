@@ -13,6 +13,27 @@ The app is in **Development mode** (see [`spotify_setup.md`](spotify_setup.md)).
 - **No sound after pressing play** — confirm the web player shows "connected and
   ready" in step 1 and that the account has **Spotify Premium**.
 
+## `redirect_uri: Not matching configuration`
+
+Spotify rejects the login before the app can handle it when the requested
+redirect URI is not listed in the Spotify Developer Dashboard. Add the exact URL
+shown in the app's Diagnostics view under **Redirect URIs**. For the public site
+this is:
+
+```text
+https://eybmits.github.io/vibe-shuffle/
+```
+
+For local development, also add:
+
+```text
+http://localhost:5173/
+```
+
+If you open the app through `127.0.0.1`, a LAN IP address, or a different Vite
+port, that exact URL must be added separately. Spotify treats those as different
+redirect URIs.
+
 ## "Spotify is rate-limiting this app"
 
 Spotify rate limits are **per app**, shared across all users. Many rapid
