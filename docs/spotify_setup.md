@@ -27,9 +27,9 @@ VITE_SPOTIFY_CLIENT_ID=your_client_id
 # VITE_SPOTIFY_REDIRECT_URI=http://localhost:5173/
 ```
 
-If Spotify shows `redirect_uri: Not matching configuration`, copy the redirect
-URI shown in the app's Diagnostics view and paste that exact value into the
-Spotify Dashboard. Do not add query strings.
+If Spotify shows `redirect_uri: Not matching configuration`, confirm that the
+redirect URI above is saved in the Spotify Dashboard for the exact Client ID
+used by the app. Do not add query strings.
 
 ## OAuth scopes
 

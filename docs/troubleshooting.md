@@ -17,8 +17,8 @@ The app is in **Development mode** (see [`spotify_setup.md`](spotify_setup.md)).
 
 Spotify rejects the login before the app can handle it when the requested
 redirect URI is not listed in the Spotify Developer Dashboard. Add the exact URL
-shown in the app's Diagnostics view under **Redirect URIs**. For the public site
-this is:
+under **Redirect URIs** for the same Client ID used by the app. For the public
+site this is:
 
 ```text
 https://eybmits.github.io/vibe-shuffle/

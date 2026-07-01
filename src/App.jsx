@@ -2332,7 +2332,6 @@ function SetupScreen({
   // The hero headline cycles through the four moods on its own. It holds the
   // first word while the page builds in, then starts swapping — and swaps fast.
   const [cycleIndex, setCycleIndex] = useState(0);
-  const [redirectCopied, setRedirectCopied] = useState(false);
   useEffect(() => {
     let intervalId;
     const startId = window.setTimeout(() => {
@@ -2353,16 +2352,6 @@ function SetupScreen({
     : spotifyPlayer.ready
       ? "Spotify player is connected and ready."
       : spotifyPlayer.error || "Connecting the Spotify player…";
-
-  const copySpotifyRedirectUri = useCallback(async () => {
-    try {
-      await navigator.clipboard?.writeText(SPOTIFY_REDIRECT_URI);
-      setRedirectCopied(true);
-      window.setTimeout(() => setRedirectCopied(false), 1800);
-    } catch {
-      setRedirectCopied(false);
-    }
-  }, []);
 
   const physiologyStatusText =
     physiology.status === "ready"
@@ -2603,28 +2592,6 @@ function SetupScreen({
               </button>
             )}
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              {!participantView ? (
-                <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] p-3 text-left">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200/80">
-                      Spotify redirect URI
-                    </span>
-                    <button
-                      className="w-fit rounded-full border border-emerald-200/20 px-3 py-1 text-xs font-semibold text-emerald-100 transition hover:border-emerald-100/50 hover:text-white"
-                      onClick={copySpotifyRedirectUri}
-                      type="button"
-                    >
-                      {redirectCopied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
-                  <code className="mt-2 block break-all rounded-lg bg-black/30 px-2.5 py-2 text-xs text-emerald-50">
-                    {SPOTIFY_REDIRECT_URI}
-                  </code>
-                  <p className="mt-2 text-xs leading-5 text-slate-400">
-                    Add this exact value in the Spotify Developer Dashboard under Redirect URIs.
-                  </p>
-                </div>
-              ) : null}
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
                   Participant #
