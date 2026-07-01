@@ -2358,15 +2358,15 @@ function SetupScreen({
             ) : (
               <>
                 <SignalMetric
-                  badge="Good"
+                  badge="Optional"
                   badgeStyle={{ background: "rgba(16,185,129,0.16)", color: "#34d399" }}
-                  label="Recovery"
-                  value="72%"
+                  label="Arousal"
+                  value="HR/RMSSD"
                   valueClass="text-emerald-400"
                 />
                 <EcgLine color="#34d399" />
-                <SignalMetric label="Stress Load" value="Low" valueClass="text-emerald-400" />
-                <SignalMetric label="Breath Rhythm" value="Detected" valueClass="text-sky-300" />
+                <SignalMetric label="Baseline" value="120 s" valueClass="text-sky-300" />
+                <SignalMetric label="Quality" value="RR needed" valueClass="text-violet-300" />
               </>
             )}
           </SignalPreviewCard>
@@ -2415,14 +2415,14 @@ function SetupScreen({
             ) : (
               <>
                 <SignalMetric
-                  badge="Positive"
+                  badge="Personal"
                   badgeStyle={{ background: "rgba(34,211,238,0.16)", color: "#67e8f9" }}
-                  label="Mood"
-                  value="Focused"
+                  label="Valence"
+                  value="Expression"
                   valueClass="text-sky-300"
                 />
-                <SignalMetric label="Tension" value="Medium" valueClass="text-amber-300" />
-                <SignalMetric label="Fatigue" value="Rising" valueClass="text-rose-300" />
+                <SignalMetric label="Motion" value="Arousal boost" valueClass="text-cyan-300" />
+                <SignalMetric label="Privacy" value="Local only" valueClass="text-violet-300" />
               </>
             )}
           </SignalPreviewCard>
