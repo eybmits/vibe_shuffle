@@ -3,7 +3,7 @@
 The project uses one repository:
 
 - Source repository: `eybmits/vibe-shuffle`
-- Static GitHub Pages branch: `gh-pages`
+- GitHub Pages deployment: GitHub Actions workflow from `main`
 
 Live site:
 
@@ -21,20 +21,15 @@ The build output is written to `dist/`. The Spotify Client ID is baked in from
 
 ## Deploy To GitHub Pages
 
-From a clean source checkout:
+Deployment is automatic on every push to `main` via
+`.github/workflows/pages.yml`. To run the same checks locally:
 
 ```bash
 npm run build
-rm -rf /tmp/vibe-shuffle-pages
-git clone --branch gh-pages --single-branch https://github.com/eybmits/vibe-shuffle.git /tmp/vibe-shuffle-pages
-find /tmp/vibe-shuffle-pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-cp -R dist/. /tmp/vibe-shuffle-pages/
-cd /tmp/vibe-shuffle-pages
-touch .nojekyll
-git add -A
-git commit -m "Deploy Vibe Shuffle update"
-git push origin gh-pages
 ```
+
+To redeploy without a code change, open the `Deploy GitHub Pages` workflow in
+GitHub Actions and run it manually with `workflow_dispatch`.
 
 ## Verification
 
