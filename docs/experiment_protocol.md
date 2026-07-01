@@ -26,6 +26,10 @@ The app implements a blinded, counterbalanced validation protocol comparing
   2" — so the participant cannot tell which condition comes first. The mapping
   above is the **experimenter's key** and lives only in this doc and the CSV, not
   in the participant UI.
+- **Participant view**: production sessions should keep **Participant view**
+  enabled. This hides the mood sector, camera preview, heart-rate/HRV chart,
+  protocol selector, and Vibe-vs-Random result chart from the participant while
+  preserving the same internal signal collection and CSV export.
 
 ## Selection
 

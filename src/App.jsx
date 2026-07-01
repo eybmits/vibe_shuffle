@@ -6,6 +6,8 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  Eye,
+  EyeOff,
   HeartPulse,
   Music2,
   Pause,
@@ -1872,6 +1874,21 @@ function SignalCard({ children, label, icon, status }) {
   );
 }
 
+function HiddenCameraFeed({ active, face }) {
+  if (!active) return null;
+
+  return (
+    <video
+      aria-hidden="true"
+      className="pointer-events-none fixed -left-[9999px] top-0 size-px opacity-0"
+      muted
+      playsInline
+      ref={face.setVideoRef}
+      tabIndex={-1}
+    />
+  );
+}
+
 function SetupStep({ children, complete, index, title }) {
   return (
     <div
@@ -2071,14 +2088,14 @@ function SignalPreviewCard({ accent, action, active, children, eyebrow, icon: Ic
 
 // brain.fm-style top navigation: brand mark on the left, content links on the
 // right. Links open the project docs/source in a new tab.
-function TopNav() {
+function TopNav({ participantView = false }) {
   const linkClass =
     "text-sm font-medium text-slate-300 transition hover:text-white";
   return (
     <header className="absolute inset-x-0 top-0 z-20 animate-rise-up">
       <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-6 sm:px-6">
         <BrandMark compact />
-        <div className="flex items-center gap-5 sm:gap-8">
+        <div className={`${participantView ? "hidden" : "flex"} items-center gap-5 sm:gap-8`}>
           <a
             className={linkClass}
             href={`${import.meta.env.BASE_URL}paper.pdf`}
@@ -2121,7 +2138,9 @@ function SetupScreen({
   onStart,
   onStartCamera,
   onStartMockHeartSensor,
+  onToggleParticipantView,
   participantNumber,
+  participantView,
   physiology,
   protocolKey,
   setupReady,
@@ -2170,10 +2189,21 @@ function SetupScreen({
           ? "Connecting to heart-rate sensor."
           : physiology.status === "waiting"
             ? "Sensor is paired. Waiting for live heart-rate packets."
-            : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
+          : physiology.error || "Optional: connect a BLE ECG/heart-rate sensor.";
+  const participantSensorStatus =
+    physiology.status === "ready"
+      ? "Sensor ready."
+      : physiology.status === "baselining"
+        ? `Sensor setup ${Math.round(physiology.baselineProgress * 100)}% complete.`
+        : physiology.status === "connecting"
+          ? "Connecting sensor."
+          : physiology.status === "waiting"
+            ? "Waiting for sensor signal."
+            : physiology.error || "Optional sensor input.";
 
   return (
     <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center gap-12 px-4 py-12 sm:px-6">
+      <HiddenCameraFeed active={participantView && cameraReady} face={face} />
       {/* mood-tinted ambient glow that follows the active mood — two breathing
           layers so the hue keeps radiating outward behind the headline */}
       <div
@@ -2194,38 +2224,51 @@ function SetupScreen({
         }}
       />
 
-      <TopNav />
+      <TopNav participantView={participantView} />
 
       <div className="relative z-10 flex flex-col items-center gap-8 text-center">
         <div>
           <h1 className="mx-auto max-w-4xl text-4xl font-bold leading-[1.04] tracking-tight text-white sm:text-7xl lg:text-8xl">
-            <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
-              Music tuned
-            </span>
-            <span className="block animate-rise-up" style={{ animationDelay: "320ms" }}>
-              to your{" "}
-              <span className="relative inline-block align-bottom">
-                <span
-                  className="relative z-10 inline-block animate-word-in"
-                  key={activeMood.key}
-                  style={{
-                    color: activeMood.accent,
-                    textShadow: `0 0 24px ${activeMood.accent}aa, 0 0 60px ${activeMood.accent}55`,
-                  }}
-                >
-                  {activeMood.label}
+            {participantView ? (
+              <>
+                <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
+                  Music listening
                 </span>
-                <span
-                  aria-hidden="true"
-                  className="absolute -bottom-1 left-0 right-0 h-3 origin-left animate-highlight-wipe rounded-full blur-[1px] sm:h-4 lg:h-5"
-                  key={`${activeMood.key}-bar`}
-                  style={{
-                    background: `linear-gradient(90deg, ${activeMood.accent}, ${activeMood.accent}22)`,
-                    boxShadow: `0 6px 30px ${activeMood.accent}66`,
-                  }}
-                />
-              </span>
-            </span>
+                <span className="block animate-rise-up" style={{ animationDelay: "320ms" }}>
+                  session
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="block animate-rise-up" style={{ animationDelay: "150ms" }}>
+                  Music tuned
+                </span>
+                <span className="block animate-rise-up" style={{ animationDelay: "320ms" }}>
+                  to your{" "}
+                  <span className="relative inline-block align-bottom">
+                    <span
+                      className="relative z-10 inline-block animate-word-in"
+                      key={activeMood.key}
+                      style={{
+                        color: activeMood.accent,
+                        textShadow: `0 0 24px ${activeMood.accent}aa, 0 0 60px ${activeMood.accent}55`,
+                      }}
+                    >
+                      {activeMood.label}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="absolute -bottom-1 left-0 right-0 h-3 origin-left animate-highlight-wipe rounded-full blur-[1px] sm:h-4 lg:h-5"
+                      key={`${activeMood.key}-bar`}
+                      style={{
+                        background: `linear-gradient(90deg, ${activeMood.accent}, ${activeMood.accent}22)`,
+                        boxShadow: `0 6px 30px ${activeMood.accent}66`,
+                      }}
+                    />
+                  </span>
+                </span>
+              </>
+            )}
           </h1>
         </div>
       </div>
@@ -2234,6 +2277,21 @@ function SetupScreen({
         className="mx-auto flex w-full max-w-3xl animate-rise-up flex-col gap-5"
         style={{ animationDelay: "720ms" }}
       >
+        <div className="flex justify-end">
+          <button
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+              participantView
+                ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
+            }`}
+            onClick={onToggleParticipantView}
+            type="button"
+          >
+            {participantView ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {participantView ? "Participant view" : "Diagnostics view"}
+          </button>
+        </div>
+
         {/* Two on-device signal previews — brain.fm style */}
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Physical signals — heart-rate variability */}
@@ -2268,12 +2326,14 @@ function SetupScreen({
             active={physiology.connected}
             eyebrow="Physical signals"
             icon={HeartPulse}
-            title="Heart Rate Variability"
+            title={participantView ? "Sensor input" : "Heart Rate Variability"}
           >
             {physiology.connected ? (
               <>
-                <p className="text-sm leading-6 text-slate-300">{physiologyStatusText}</p>
-                {physiology.status === "baselining" ? (
+                <p className="text-sm leading-6 text-slate-300">
+                  {participantView ? participantSensorStatus : physiologyStatusText}
+                </p>
+                {!participantView && physiology.status === "baselining" ? (
                   <button
                     className="mt-2 text-xs font-semibold text-slate-500 underline-offset-4 transition hover:text-slate-300 hover:underline"
                     onClick={physiology.skipBaseline}
@@ -2283,6 +2343,11 @@ function SetupScreen({
                   </button>
                 ) : null}
               </>
+            ) : participantView ? (
+              <div className="flex min-h-36 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+                <HeartPulse className="mx-auto size-8 text-rose-200/80" />
+                <p className="mt-3 text-sm leading-6 text-slate-300">Optional sensor input.</p>
+              </div>
             ) : (
               <>
                 <SignalMetric
@@ -2317,9 +2382,14 @@ function SetupScreen({
             active={cameraReady}
             eyebrow="Emotional signals"
             icon={ScanFace}
-            title="Facial Expression"
+            title={participantView ? "Camera input" : "Facial Expression"}
           >
-            {cameraReady ? (
+            {cameraReady && participantView ? (
+              <div className="flex h-32 w-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-center">
+                <CheckCircle2 className="size-8 text-cyan-200" />
+                <p className="mt-3 text-sm font-semibold text-slate-200">Camera ready</p>
+              </div>
+            ) : cameraReady ? (
               <div className="h-32 w-full overflow-hidden rounded-xl border border-white/10 bg-black/50">
                 <video
                   aria-label="Local camera preview"
@@ -2382,27 +2452,29 @@ function SetupScreen({
                   value={participantNumber}
                 />
               </label>
-              <div>
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
-                  Protocol
-                </span>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {[1, 2].map((key) => (
-                    <button
-                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                        protocolKey === key
-                          ? "border-cyan-400/60 bg-cyan-400/15 text-white"
-                          : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
-                      }`}
-                      key={key}
-                      onClick={() => onProtocolKeyChange(key)}
-                      type="button"
-                    >
-                      {PROTOCOL_LABELS[key]}
-                    </button>
-                  ))}
+              {!participantView ? (
+                <div>
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    Protocol
+                  </span>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {[1, 2].map((key) => (
+                      <button
+                        className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                          protocolKey === key
+                            ? "border-cyan-400/60 bg-cyan-400/15 text-white"
+                            : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
+                        }`}
+                        key={key}
+                        onClick={() => onProtocolKeyChange(key)}
+                        type="button"
+                      >
+                        {PROTOCOL_LABELS[key]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
             <PrimaryButton
               className="w-full"
@@ -2664,7 +2736,7 @@ function ResultsChart({ ratings }) {
   );
 }
 
-function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
+function CalibrationOverlay({ face, onSkip, participantView, secondsRemaining, total }) {
   const progress = (total - secondsRemaining) / total;
   const radius = 78;
   const circumference = 2 * Math.PI * radius;
@@ -2675,32 +2747,41 @@ function CalibrationOverlay({ face, onSkip, secondsRemaining, total }) {
       <section
         className={`${GLASS_CARD} w-full max-w-lg animate-scale-in bg-[#0a0d1d]/80 p-8 text-center sm:p-10`}
       >
-        <SectionLabel icon={Camera}>Calibration</SectionLabel>
+        <SectionLabel icon={participantView ? ScanFace : Camera}>
+          {participantView ? "Preparation" : "Calibration"}
+        </SectionLabel>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-[2.6rem] sm:leading-[1.05]">
-          Look neutrally at the camera
+          {participantView ? "Sit still for a moment" : "Look neutrally at the camera"}
         </h2>
         <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-400">
-          Relax your face and sit still for a moment — we are learning your personal resting baseline
-          so small changes are detected accurately during the session.
+          {participantView
+            ? "Relax your face and keep your posture steady until the countdown finishes."
+            : "Relax your face and sit still for a moment — we are learning your personal resting baseline so small changes are detected accurately during the session."}
         </p>
 
         <div className="relative mx-auto mt-9 size-52">
           {/* breathing ambient glow */}
           <div className="absolute inset-0 animate-breathe rounded-full bg-gradient-to-br from-cyan-400/30 to-violet-500/30 blur-2xl" />
-          <div className="absolute inset-3 overflow-hidden rounded-full border border-white/15 bg-black/60 shadow-[0_0_60px_rgba(34,211,238,0.18)]">
-            <video
-              aria-label="Calibration camera preview"
-              className="h-full w-full scale-x-[-1] object-cover"
-              muted
-              playsInline
-              ref={face.attachPreview}
-            />
-            {searching ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                Looking for you…
-              </div>
-            ) : null}
-          </div>
+          {participantView ? (
+            <div className="absolute inset-3 grid place-items-center rounded-full border border-white/15 bg-white/[0.04] shadow-[0_0_60px_rgba(34,211,238,0.18)]">
+              <ScanFace className="size-14 text-cyan-100/80" />
+            </div>
+          ) : (
+            <div className="absolute inset-3 overflow-hidden rounded-full border border-white/15 bg-black/60 shadow-[0_0_60px_rgba(34,211,238,0.18)]">
+              <video
+                aria-label="Calibration camera preview"
+                className="h-full w-full scale-x-[-1] object-cover"
+                muted
+                playsInline
+                ref={face.attachPreview}
+              />
+              {searching ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                  Looking for you…
+                </div>
+              ) : null}
+            </div>
+          )}
           <svg className="absolute inset-0 size-full -rotate-90" viewBox="0 0 208 208">
             <circle cx="104" cy="104" r={radius} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
             <circle
@@ -2797,6 +2878,7 @@ export default function App() {
   const [playbackNotice, setPlaybackNotice] = useState("");
   const [jumpedTrialIds, setJumpedTrialIds] = useState([]);
   const [calibrationRemaining, setCalibrationRemaining] = useState(0);
+  const [participantView, setParticipantView] = useState(true);
   const playbackRequestRef = useRef(0);
   const expressionWindowRef = useRef([]);
   const lastWindowSampleIdRef = useRef(0);
@@ -3250,7 +3332,9 @@ export default function App() {
           onStart={startSession}
           onStartCamera={face.start}
           onStartMockHeartSensor={physiology.startMock}
+          onToggleParticipantView={() => setParticipantView((value) => !value)}
           participantNumber={participantNumber}
+          participantView={participantView}
           physiology={physiology}
           protocolKey={protocolKey}
           setupReady={setupReady}
@@ -3269,6 +3353,7 @@ export default function App() {
 
   return (
     <main className="relative min-h-screen bg-[#05060f] text-slate-100">
+      <HiddenCameraFeed active={participantView && cameraReady} face={face} />
       <AuroraBackground />
 
       <div className="relative z-10 mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
@@ -3276,7 +3361,7 @@ export default function App() {
           <BrandMark compact />
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
-              #{participantNumber} · {PROTOCOL_LABELS[protocolKey]}
+              {participantView ? `Participant #${participantNumber}` : `#${participantNumber} · ${PROTOCOL_LABELS[protocolKey]}`}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-1.5 text-xs font-semibold text-slate-300">
               Trial {Math.min(completedTrials + 1, totalTrials)}/{totalTrials}
@@ -3392,73 +3477,75 @@ export default function App() {
           </div>
         </section>
 
-        <section className="grid animate-fade-in gap-4 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
-          <SignalCard
-            icon={Sparkles}
-            label="Mood"
-            status={mood.facePresent ? mood.label : "Waiting"}
-          >
-            <MoodMap mood={mood} />
-          </SignalCard>
+        {!participantView ? (
+          <section className="grid animate-fade-in gap-4 sm:grid-cols-3" style={{ animationDelay: "120ms" }}>
+            <SignalCard
+              icon={Sparkles}
+              label="Mood"
+              status={mood.facePresent ? mood.label : "Waiting"}
+            >
+              <MoodMap mood={mood} />
+            </SignalCard>
 
-          <SignalCard
-            icon={Camera}
-            label="Expression"
-            status={
-              face.status === "ready"
-                ? `${Math.round(face.confidence * 100)}%`
-                : face.status === "searching"
-                  ? "Searching"
-                  : "Off"
-            }
-          >
-            <div className="aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60">
-              <video
-                aria-label="Local camera preview"
-                className="h-full w-full scale-x-[-1] object-cover opacity-90"
-                muted
-                playsInline
-                ref={face.setVideoRef}
-              />
-            </div>
-          </SignalCard>
-
-          <SignalCard icon={HeartPulse} label="Heart rate" status={heartRateLabel}>
-            <div className="flex aspect-square w-full flex-col gap-3 rounded-2xl border border-white/10 bg-[#070a18] p-4">
-              <div className="min-h-0 flex-1">
-                <HeartRateCurve physiology={physiology} summary={physiologySummary} />
+            <SignalCard
+              icon={Camera}
+              label="Expression"
+              status={
+                face.status === "ready"
+                  ? `${Math.round(face.confidence * 100)}%`
+                  : face.status === "searching"
+                    ? "Searching"
+                    : "Off"
+              }
+            >
+              <div className="aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-black/60">
+                <video
+                  aria-label="Local camera preview"
+                  className="h-full w-full scale-x-[-1] object-cover opacity-90"
+                  muted
+                  playsInline
+                  ref={face.setVideoRef}
+                />
               </div>
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
-                  <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    RMSSD
+            </SignalCard>
+
+            <SignalCard icon={HeartPulse} label="Heart rate" status={heartRateLabel}>
+              <div className="flex aspect-square w-full flex-col gap-3 rounded-2xl border border-white/10 bg-[#070a18] p-4">
+                <div className="min-h-0 flex-1">
+                  <HeartRateCurve physiology={physiology} summary={physiologySummary} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      RMSSD
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-white">
+                      {Number.isFinite(physiologySummary.rmssd_ms)
+                        ? `${Math.round(physiologySummary.rmssd_ms)} ms`
+                        : "—"}
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {Number.isFinite(physiologySummary.rmssd_ms)
-                      ? `${Math.round(physiologySummary.rmssd_ms)} ms`
-                      : "—"}
+                  <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
+                    <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      vs rest
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-white">
+                      {Number.isFinite(physiologySummary.hr_bpm_mean) &&
+                      Number.isFinite(physiologySummary.baseline_hr_bpm)
+                        ? (() => {
+                            const delta = Math.round(
+                              physiologySummary.hr_bpm_mean - physiologySummary.baseline_hr_bpm,
+                            );
+                            return `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} bpm`;
+                          })()
+                        : "—"}
+                    </div>
                   </div>
                 </div>
-                <div className="rounded-xl bg-white/[0.05] px-2 py-2.5">
-                  <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    vs rest
-                  </div>
-                  <div className="mt-1 text-sm font-semibold text-white">
-                    {Number.isFinite(physiologySummary.hr_bpm_mean) &&
-                    Number.isFinite(physiologySummary.baseline_hr_bpm)
-                      ? (() => {
-                          const delta = Math.round(
-                            physiologySummary.hr_bpm_mean - physiologySummary.baseline_hr_bpm,
-                          );
-                          return `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} bpm`;
-                        })()
-                      : "—"}
-                  </div>
-                </div>
               </div>
-            </div>
-          </SignalCard>
-        </section>
+            </SignalCard>
+          </section>
+        ) : null}
 
         {protocolComplete ? (
           <section className={`${GLASS_CARD} p-6 sm:p-8`}>
@@ -3483,9 +3570,15 @@ export default function App() {
                 </GhostButton>
               </div>
             </div>
-            <div className="mt-6">
-              <ResultsChart ratings={ratings} />
-            </div>
+            {!participantView ? (
+              <div className="mt-6">
+                <ResultsChart ratings={ratings} />
+              </div>
+            ) : (
+              <p className="mt-4 text-sm leading-6 text-slate-400">
+                Thank you. Please wait while the experimenter saves the session file.
+              </p>
+            )}
           </section>
         ) : null}
       </div>
@@ -3501,6 +3594,7 @@ export default function App() {
         <CalibrationOverlay
           face={face}
           onSkip={finishCalibration}
+          participantView={participantView}
           secondsRemaining={calibrationRemaining}
           total={CALIBRATION_SECONDS}
         />
