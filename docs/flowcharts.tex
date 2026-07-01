@@ -182,16 +182,16 @@
 
   % ---- Part B: the validation experiment ----
   \node[result, below=of a3] (b1)
-    {\head{Your mood right now lands you in one corner}
+    {\head{Your average mood during the song lands in one corner}
      Your face sets the \emph{valence} (positive\,$\leftrightarrow$\,negative);
      your heartbeat sets the \emph{energy} (low\,$\leftrightarrow$\,high).
-     Together they point to one of the four corners above.};
+     Together they are averaged over the 60 s listening window.};
 
   \node[mode, fill=song!10, draw=song, text width=6.1cm,
         below=11mm of b1, xshift=-3.6cm] (vibe)
     {\textbf{Vibe mode}\\[2pt]
-     Pick only from songs in \emph{your} current corner --- music that matches
-     how you feel right now.};
+     Pick mostly from songs in the corner of \emph{your} average 60 s state ---
+     music that matches how the last song affected you.};
   \node[mode, text width=6.1cm, below=11mm of b1, xshift=3.6cm] (rand)
     {\textbf{Random mode}\\[2pt]
      Pick from \emph{all} 100 songs, ignoring your mood --- the control to

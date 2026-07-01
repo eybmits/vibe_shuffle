@@ -38,10 +38,11 @@ mock or global reference.
 The live mood-sector feedback uses a rolling **8 s** HR window so +bpm/-bpm
 changes move the y-axis quickly. The saved trial physiology summary uses a
 rolling **60 s** HR/RMSSD window, matched to the listening trial length. The
-Vibe block's next-song choice uses the recent end-of-track state (last ~20 s)
-so adaptation follows where the participant is at the end of the song. The
-diagnostic heart-rate chart is plotted as **bpm vs rest**, so the personal
-baseline is the `0` line.
+Vibe block's next-song choice uses the mean fused mood-space position sampled
+across that same 60 s listening window, so one brief spike does not fully define
+the next song but sustained movement away from baseline does. The diagnostic
+heart-rate chart is plotted as **bpm vs rest**, so the personal baseline is the
+`0` line.
 
 A separate frequency-domain `physiology_coherence` value is exported as an
 experimental diagnostic of rhythmic regularity. It is not mapped onto the

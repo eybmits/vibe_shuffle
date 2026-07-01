@@ -57,9 +57,10 @@ heart-rate sensor ──► HR/RR packets ──► physiologyModel ──► ar
   Random→Vibe (Protokoll 1) or Vibe→Random (Protokoll 2), 5 tracks per block,
   60 s each → **10 tracks total**. Counterbalancing is **between participants**
   (each runs one order). `random` ranks tracks deterministically at random,
-  `vibe` ranks by distance to the recent end-of-track fused state (last ~20 s)
-  in the valence/arousal plane (`rankSongs`). The saved trial row still exports
-  the full 60 s listening-window summary.
+  `vibe` ranks by distance to the mean fused valence/arousal position sampled
+  across the full 60 s listening window (`rankSongs`). The saved trial row
+  exports that same full-window detected valence/arousal plus the 60 s
+  physiology summary.
 - **Rating**: after each track, two sequential 7-point questions (liking, then
   mood-fit) collected in `RatingModal` and saved by `submitRating`.
 - **Result**: `ResultsChart` shows mean mood-fit Vibe vs Random (liking as a

@@ -38,7 +38,7 @@ import { EMOTION_QUADRANTS, buildDemoLibrary } from "./spotifyLibrary.js";
 
 const TRACKS_PER_BLOCK = 5;
 const LISTENING_WINDOW_SECONDS = 60;
-const NEXT_SONG_SELECTION_WINDOW_MS = 20_000;
+const LISTENING_WINDOW_MS = LISTENING_WINDOW_SECONDS * 1000;
 const CALIBRATION_SECONDS = 14;
 const MEDIAPIPE_VERSION = "0.10.35";
 
@@ -104,7 +104,7 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 // Fresh seed per session/restart so song selection never repeats an order.
 const randomSeed = () => Math.floor(Math.random() * 1_000_000) + 1;
 
-function recentSamplesByAge(samples, windowMs) {
+function samplesWithinWindow(samples, windowMs) {
   if (!samples.length) return [];
   const latestTimestamp = samples.reduce((latest, sample) => {
     const timestamp = Number(sample?.timestamp);
@@ -116,6 +116,55 @@ function recentSamplesByAge(samples, windowMs) {
     const timestamp = Number(sample?.timestamp);
     return Number.isFinite(timestamp) && latestTimestamp - timestamp <= windowMs;
   });
+}
+
+function appendSampleWithinWindow(samples, sample, windowMs) {
+  return samplesWithinWindow([...samples, sample], windowMs);
+}
+
+function moodTagFromAxes(valence, energy) {
+  if (valence >= 0.5 && energy >= 0.5) return "happy";
+  if (valence >= 0.5 && energy < 0.5) return "relaxed";
+  if (valence < 0.5 && energy >= 0.5) return "tense";
+  return "sad_low";
+}
+
+function summarizeMoodPositionSamples(samples, fallbackSignal = null) {
+  const validSamples = samples.filter(
+    (sample) => Number.isFinite(sample?.valence) && Number.isFinite(sample?.energy),
+  );
+
+  if (!validSamples.length) {
+    const valence = clamp(Number(fallbackSignal?.valence ?? 0.5), 0, 1);
+    const energy = clamp(Number(fallbackSignal?.energy ?? 0.5), 0, 1);
+    return {
+      confidence: clamp(Number(fallbackSignal?.confidence ?? 0)),
+      energy,
+      facePresent: Boolean(fallbackSignal?.facePresent),
+      sampleCount: 0,
+      selectionSignalSource: fallbackSignal?.selectionSignalSource ?? "fallback_signal",
+      tag: moodTagFromAxes(valence, energy),
+      valence,
+    };
+  }
+
+  const valence =
+    validSamples.reduce((total, sample) => total + Number(sample.valence), 0) / validSamples.length;
+  const energy =
+    validSamples.reduce((total, sample) => total + Number(sample.energy), 0) / validSamples.length;
+  const confidence =
+    validSamples.reduce((total, sample) => total + Number(sample.confidence ?? 0), 0) /
+    validSamples.length;
+
+  return {
+    confidence: clamp(confidence),
+    energy: clamp(energy),
+    facePresent: validSamples.some((sample) => sample.facePresent),
+    sampleCount: validSamples.length,
+    selectionSignalSource: "mean_60s_mood_position",
+    tag: moodTagFromAxes(valence, energy),
+    valence: clamp(valence),
+  };
 }
 
 function createProtocolId() {
@@ -2926,6 +2975,7 @@ export default function App() {
   const lastWindowSampleIdRef = useRef(0);
   const physiologyWindowRef = useRef([]);
   const lastPhysiologySampleIdRef = useRef(0);
+  const moodPositionWindowRef = useRef([]);
 
   const mode = blockSequence[currentBlockIndex];
   // Which loop the current block belongs to (1 or 2) and that loop's own order
@@ -2939,9 +2989,11 @@ export default function App() {
     [
       face.confidence,
       face.energy,
+      face.facePresent,
       face.tag,
       face.valence,
       physiology.currentSummary.physiology_arousal,
+      physiology.currentSummary.physiology_arousal_source,
       physiology.currentSummary.physiology_quality,
       physiology.currentSummary.rr_count,
     ],
@@ -2967,14 +3019,6 @@ export default function App() {
     return summarizeExpressionSamples(expressionWindowRef.current, face);
   }
 
-  function currentSelectionWindowSummary() {
-    const fullSummary = currentWindowSummary();
-    return summarizeExpressionSamples(
-      recentSamplesByAge(expressionWindowRef.current, NEXT_SONG_SELECTION_WINDOW_MS),
-      fullSummary,
-    );
-  }
-
   function currentPhysiologySummary() {
     return summarizePhysiologyMeasurements(
       physiologyWindowRef.current,
@@ -2983,14 +3027,10 @@ export default function App() {
     );
   }
 
-  function currentSelectionPhysiologySummary() {
-    const fullSummary = currentPhysiologySummary();
-    return summarizePhysiologyMeasurements(
-      recentSamplesByAge(physiologyWindowRef.current, NEXT_SONG_SELECTION_WINDOW_MS),
-      physiology.baseline,
-      fullSummary,
-      { allowFastHrArousal: true },
-    );
+  function currentMoodWindowSummary(fallbackSignal = null) {
+    const fullWindowSignal =
+      fallbackSignal ?? fuseEmotionSignals(currentWindowSummary(), currentPhysiologySummary());
+    return summarizeMoodPositionSamples(moodPositionWindowRef.current, fullWindowSignal);
   }
 
   function resetSignalWindows() {
@@ -2998,6 +3038,7 @@ export default function App() {
     lastWindowSampleIdRef.current = face.sampleId ?? 0;
     physiologyWindowRef.current = [];
     lastPhysiologySampleIdRef.current = physiology.sampleId ?? 0;
+    moodPositionWindowRef.current = [];
   }
 
   async function startCurrentTrack(song) {
@@ -3073,7 +3114,11 @@ export default function App() {
       return;
     }
 
-    expressionWindowRef.current = [...expressionWindowRef.current.slice(-360), face.sample];
+    expressionWindowRef.current = appendSampleWithinWindow(
+      expressionWindowRef.current,
+      face.sample,
+      LISTENING_WINDOW_MS,
+    );
   }, [
     face.sample,
     face.sampleId,
@@ -3103,11 +3148,46 @@ export default function App() {
       return;
     }
 
-    physiologyWindowRef.current = [...physiologyWindowRef.current.slice(-180), physiology.sample];
+    physiologyWindowRef.current = appendSampleWithinWindow(
+      physiologyWindowRef.current,
+      physiology.sample,
+      LISTENING_WINDOW_MS,
+    );
   }, [
     isPlaybackActive,
     physiology.sample,
     physiology.sampleId,
+    protocolComplete,
+    ratingPromptOpen,
+    sessionStarted,
+  ]);
+
+  useEffect(() => {
+    if (!sessionStarted || !isPlaybackActive || ratingPromptOpen || protocolComplete) {
+      return;
+    }
+
+    moodPositionWindowRef.current = appendSampleWithinWindow(
+      moodPositionWindowRef.current,
+      {
+        confidence: liveFusion.confidence,
+        energy: liveFusion.energy,
+        facePresent: liveFusion.facePresent,
+        selectionSignalSource: liveFusion.selectionSignalSource,
+        tag: liveFusion.tag,
+        timestamp: Date.now(),
+        valence: liveFusion.valence,
+      },
+      LISTENING_WINDOW_MS,
+    );
+  }, [
+    isPlaybackActive,
+    liveFusion.confidence,
+    liveFusion.energy,
+    liveFusion.facePresent,
+    liveFusion.selectionSignalSource,
+    liveFusion.tag,
+    liveFusion.valence,
     protocolComplete,
     ratingPromptOpen,
     sessionStarted,
@@ -3217,14 +3297,10 @@ export default function App() {
     }
   }
 
-  function advanceProtocol(latestRatings) {
+  function advanceProtocol(selectionMoodOverride = null) {
     if (protocolComplete) return;
 
-    const selectionFusion = fuseEmotionSignals(
-      currentSelectionWindowSummary(),
-      currentSelectionPhysiologySummary(),
-    );
-    const selectionMood = signalStateToMood(selectionFusion);
+    const selectionMood = selectionMoodOverride ?? currentMoodWindowSummary();
     const rankedSongs = rankSongs(
       songs,
       mode,
@@ -3281,6 +3357,7 @@ export default function App() {
     const expressionMood = expressionStateToMood(expressionSummary);
     const physiologySummary = currentPhysiologySummary();
     const fusionSummary = fuseEmotionSignals(expressionSummary, physiologySummary);
+    const detectedMood = currentMoodWindowSummary(fusionSummary);
     const nextRating = {
       protocol_id: protocolId,
       participant_number: participantNumber,
@@ -3303,8 +3380,8 @@ export default function App() {
       face_present: expressionMood.facePresent,
       ecg_connected: physiology.connected,
       physiology_quality: physiologySummary.physiology_quality,
-      detected_valence: Number(fusionSummary.valence.toFixed(3)),
-      detected_arousal: Number(fusionSummary.energy.toFixed(3)),
+      detected_valence: Number(detectedMood.valence.toFixed(3)),
+      detected_arousal: Number(detectedMood.energy.toFixed(3)),
       physiology_arousal: physiologySummary.physiology_arousal,
       physiology_coherence: physiologySummary.physiology_coherence,
       rating_like_1_to_7: likeScore,
@@ -3315,7 +3392,7 @@ export default function App() {
       ? ratings.map((rating) => (rating.trial_id === trialId ? nextRating : rating))
       : [...ratings, nextRating];
     setRatings(nextRatings);
-    advanceProtocol(nextRatings);
+    advanceProtocol(detectedMood);
   }
 
   function resetProtocol() {
